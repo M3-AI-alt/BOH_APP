@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: 'Ben Oxford Hub | Centre workspace',
   description:
     'Private class attendance, student packages and monthly finance for Ben Oxford Hub.',
+  icons: { icon: { url: '/brand/boh-stacked.svg', type: 'image/svg+xml' } },
 };
 
 export default function RootLayout({

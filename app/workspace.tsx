@@ -388,11 +388,14 @@ export default function Workspace({ userName }: { userName: string }) {
       <Sidebar className="boh-sidebar">
         <SidebarHeader>
           <div className="brand">
-            <div className="brand-mark">b.</div>
-            <div>
-              <strong>BEN OXFORD HUB</strong>
-              <span>Centre workspace</span>
-            </div>
+            <img
+              className="brand-logo"
+              src="/brand/boh-logo.svg"
+              alt="Ben Oxford Hub"
+              width={1206}
+              height={489.84}
+            />
+            <span>Centre workspace</span>
           </div>
         </SidebarHeader>
         <SidebarContent>

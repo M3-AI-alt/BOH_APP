@@ -6,7 +6,13 @@ export default async function Home() {
   if (!user && process.env.NODE_ENV !== 'development')
     return (
       <main className="gate">
-        <div className="brand-mark">b.</div>
+        <img
+          className="gate-logo"
+          src="/brand/boh-logo.svg"
+          alt=""
+          width={1206}
+          height={489.84}
+        />
         <h1>Ben Oxford Hub</h1>
         <p>Your private centre workspace.</p>
         <a className="primary-link" href={chatGPTSignInPath('/')} target="_top">

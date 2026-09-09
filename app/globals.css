@@ -10,25 +10,25 @@
   --color-popover: var(--card);
   --color-popover-foreground: var(--foreground);
   --color-primary: var(--primary);
-  --color-primary-foreground: #fff;
+  --color-primary-foreground: var(--primary-foreground);
   --color-secondary: #eef2f8;
   --color-secondary-foreground: #233656;
   --color-muted: #f1f4f9;
   --color-muted-foreground: #65738b;
-  --color-accent: #eef3ff;
-  --color-accent-foreground: #2855c6;
+  --color-accent: var(--brand-tint);
+  --color-accent-foreground: var(--brand-burgundy);
   --color-destructive: #ba344b;
   --color-border: var(--border);
   --color-input: #d9e0ec;
-  --color-ring: #456beb;
+  --color-ring: var(--brand-navy);
   --color-sidebar: #fff;
   --color-sidebar-foreground: #586780;
-  --color-sidebar-primary: #2e5cde;
+  --color-sidebar-primary: var(--brand-navy);
   --color-sidebar-primary-foreground: #fff;
-  --color-sidebar-accent: #edf2ff;
-  --color-sidebar-accent-foreground: #244fc2;
+  --color-sidebar-accent: var(--brand-tint);
+  --color-sidebar-accent-foreground: var(--brand-burgundy);
   --color-sidebar-border: #e6ebf3;
-  --color-sidebar-ring: #456beb;
+  --color-sidebar-ring: var(--brand-navy);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-lg: 1rem;
@@ -37,18 +37,26 @@
   --radius-sm: 0.5rem;
 }
 :root {
+  /* Brand colours sampled from the supplied BOH vector artwork. */
+  --brand-navy: #0b2e4b;
+  --brand-burgundy: #7f1337;
+  --brand-gold: #cdb767;
+  --brand-tint: #f8eef1;
+  --brand-navy-tint: #edf3f6;
   --background: #f5f7fb;
-  --foreground: #182842;
+  --foreground: #182c3d;
   --card: #fff;
-  --primary: #2d5be3;
+  --primary: var(--brand-navy);
+  --primary-foreground: #fff;
   --border: #e5eaf2;
   --radius: 0.85rem;
 }
 .dark {
-  --background: #111b2c;
+  --background: #0a1b2b;
   --foreground: #edf2fb;
-  --card: #19263b;
-  --primary: #7da2ff;
+  --card: #112c42;
+  --primary: var(--brand-gold);
+  --primary-foreground: var(--brand-navy);
   --border: #2d3b52;
 }
 * {
@@ -77,7 +85,7 @@ button:disabled {
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid #9bb8ff;
+  outline: 3px solid var(--primary);
   outline-offset: 3px;
 }
 h1,
@@ -107,34 +115,24 @@ small {
 }
 .brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 11px;
-  padding: 24px 12px 31px;
+  gap: 12px;
+  padding: 22px 12px 24px;
+  border-bottom: 1px solid #cdb76760;
+  margin: 0 12px 14px;
 }
-.brand-mark {
-  width: 42px;
-  height: 44px;
-  border-radius: 12px;
-  background: #112649;
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 32px;
-  font-weight: 750;
-  letter-spacing: -0.1em;
-  line-height: 1;
-  padding-right: 3px;
-}
-.brand strong {
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
+.brand-logo {
+  width: 100%;
+  max-width: 208px;
+  height: auto;
   display: block;
 }
 .brand span {
-  font-size: 0.8rem;
-  color: #8591a4;
+  font-size: 0.8125rem;
+  color: #5e7182;
   display: block;
-  margin-top: 4px;
+  letter-spacing: 0.02em;
 }
 .nav-caption {
   font-size: 0.7rem;
@@ -156,7 +154,7 @@ small {
 }
 [data-slot='sidebar-menu-button'][data-active='true'] {
   font-weight: 600;
-  box-shadow: inset 3px 0 #2d5be3;
+  box-shadow: inset 3px 0 var(--brand-burgundy);
 }
 .sidebar-note {
   margin: auto 20px 20px;
@@ -187,8 +185,8 @@ small {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #e8efff;
-  color: #315bc3;
+  background: var(--brand-navy-tint);
+  color: var(--brand-navy);
   display: grid;
   place-items: center;
   font-size: 0.8rem;
@@ -282,8 +280,8 @@ small {
   padding: 0 18px;
   border-radius: 10px;
   background: var(--primary);
-  color: white;
-  box-shadow: 0 4px 10px #2d5be321;
+  color: var(--primary-foreground);
+  box-shadow: 0 4px 10px #0b2e4b18;
   font-size: 0.875rem;
 }
 .period-toolbar {
@@ -333,9 +331,9 @@ small {
   min-width: 0;
 }
 .metric.blue {
-  border-top: 3px solid var(--primary);
+  border-top: 3px solid var(--brand-gold);
   padding-top: 22px;
-  background: linear-gradient(145deg, #fff 50%, #eef4ff);
+  background: linear-gradient(145deg, #fff 50%, #edf3f6);
 }
 .metric-top {
   display: flex;
@@ -424,8 +422,9 @@ small {
 .navy-panel {
   padding: 27px 30px;
   color: #fff;
-  border-color: #1e3c6b;
-  background: radial-gradient(ellipse at top right, #264d83 0, #122849 64%);
+  border-color: var(--brand-navy);
+  border-top: 3px solid var(--brand-gold);
+  background: radial-gradient(ellipse at top right, #1c4961 0, var(--brand-navy) 64%);
 }
 .icon-tile {
   display: grid;
@@ -436,7 +435,7 @@ small {
   width: 42px;
   height: 42px;
   margin-bottom: 19px;
-  color: #a8c7ff;
+  color: var(--brand-gold);
 }
 .navy-panel h2 {
   font-size: 1.4rem;
@@ -444,14 +443,14 @@ small {
   font-weight: 550;
 }
 .navy-panel p {
-  color: #a4b7d3;
+  color: #beced9;
   line-height: 1.65;
   font-size: 0.85rem;
   margin: 14px 0 23px;
 }
 .navy-panel button {
-  background: #fff;
-  color: #17345c;
+  background: var(--brand-gold);
+  color: var(--brand-navy);
   font-size: 0.8125rem;
   border-radius: 8px;
   height: 37px;
@@ -463,7 +462,7 @@ small {
   padding-top: 19px;
   margin-top: 23px;
   font-size: 0.75rem;
-  color: #8ea9cd;
+  color: #bacbd8;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -513,7 +512,17 @@ small {
   justify-content: center;
   flex-direction: column;
   gap: 22px;
-  background: radial-gradient(ellipse at top, #e8efff, #f6f8fc 70%);
+  padding: 32px 20px;
+  text-align: center;
+  background: #fff;
+  border-top: 4px solid var(--brand-burgundy);
+  border-bottom: 4px solid var(--brand-gold);
+}
+.gate-logo {
+  display: block;
+  width: min(340px, 85vw);
+  height: auto;
+  margin-bottom: 10px;
 }
 .gate h1 {
   font-size: 2rem;
@@ -526,7 +535,7 @@ small {
 }
 .primary-link {
   border-radius: 10px;
-  background: #2d5be3;
+  background: var(--brand-navy);
   padding: 13px 24px;
   color: white;
   text-decoration: none;
@@ -544,8 +553,8 @@ textarea {
 }
 input:focus,
 textarea:focus {
-  border-color: #6389ec;
-  box-shadow: 0 0 0 3px #4269e114;
+  border-color: var(--brand-navy);
+  box-shadow: 0 0 0 3px #0b2e4b14;
 }
 input[type='month'] {
   border: 0;
@@ -688,7 +697,7 @@ a {
   padding: 0;
 }
 .name-link:hover {
-  color: #2d5be3;
+  color: var(--brand-burgundy);
   text-decoration: underline;
 }
 .long-cell {
@@ -871,7 +880,7 @@ a {
   z-index: 6;
 }
 .attendance-table .today-col {
-  background: #f0f5ff !important;
+  background: var(--brand-navy-tint) !important;
 }
 .attendance-table .choice {
   min-width: 48px !important;
@@ -936,8 +945,8 @@ a {
   margin-left: auto;
 }
 .quiet-button:hover {
-  background: #eef3fc;
-  color: #3b62be;
+  background: var(--brand-navy-tint);
+  color: var(--brand-navy);
 }
 .below-action {
   margin-top: 16px;
@@ -979,13 +988,14 @@ a {
   gap: 7px;
 }
 .chart-legend i {
-  background: #456fe3;
+  background: var(--brand-navy);
   width: 7px;
   height: 7px;
   border-radius: 2px;
 }
 .chart-legend span + span i {
-  background: #cfdcf4;
+  background: var(--brand-gold);
+  border: 1px solid #8a742c;
 }
 .cash-chart {
   display: flex;
@@ -1019,10 +1029,11 @@ a {
   width: min(26px, 28%);
   min-height: 2px;
   border-radius: 5px 5px 0 0;
-  background: #456fe3;
+  background: var(--brand-navy);
 }
 .expense-bar {
-  background: #cfdbf1;
+  background: var(--brand-gold);
+  border: 1px solid #8a742c;
 }
 .chart-month strong {
   display: block;
@@ -1047,7 +1058,7 @@ a {
   font-size: 0.68rem !important;
   letter-spacing: 0.14em;
   margin: 0 0 10px !important;
-  color: #8faad0 !important;
+  color: var(--brand-gold) !important;
 }
 .navy-number {
   font-size: clamp(1.7rem, 2.6vw, 2.6rem);
@@ -1058,7 +1069,7 @@ a {
 .navy-number span {
   font-size: 0.75rem;
   letter-spacing: 0.01em;
-  color: #96b2d4;
+  color: #beced9;
   display: block;
   margin-top: 8px;
 }
