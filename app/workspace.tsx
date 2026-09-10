@@ -1,4 +1,6 @@
 'use client';
+import { useLanguage } from '@/app/language';
+import { LanguageSwitch } from './language';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LayoutDashboard,
@@ -68,8 +70,6 @@ import {
   today,
   entries,
   shiftMonth,
-  monthLabel,
-  money,
   studentReview,
   cleanSearch,
   monthEnd,
@@ -101,6 +101,7 @@ const views: Record<string, React.ComponentType<ViewProps>> = {
   'Original records': SourceRecords,
 };
 export default function Workspace({ userName }: { userName: string }) {
+  const { t, message, intlLocale } = useLanguage();
   const [view, setView] = useState('Overview'),
     [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [month, setMonth] = useState(today().slice(0, 7)),
@@ -200,7 +201,7 @@ export default function Workspace({ userName }: { userName: string }) {
       // Only an authorised snapshot can repopulate views after a role change.
       const refreshed = await load();
       setSaved(
-        new Date().toLocaleTimeString('en-GB', {
+        new Date().toLocaleTimeString(intlLocale, {
           hour: '2-digit',
           minute: '2-digit',
         }),
@@ -216,7 +217,7 @@ export default function Workspace({ userName }: { userName: string }) {
         /* Other devices still refresh on focus / each minute. */
       }
     },
-    [load],
+    [load, intlLocale],
   );
   useEffect(() => {
     void load();
@@ -473,19 +474,20 @@ export default function Workspace({ userName }: { userName: string }) {
     return (
       <main className="password-page">
         <section className="password-card">
+          <LanguageSwitch />
           <img
             src="/brand/boh-navy.svg"
             alt="Ben Oxford Hub"
             width={210}
             height={85}
           />
-          <h1>Let’s check your access.</h1>
-          <p role="alert">{error}</p>
+          <h1>{t('Let’s check your access.')}</h1>
+          <p role="alert">{message(error)}</p>
           <a className="welcome-signin-button" href="/login">
-            Go to sign in <ArrowUpRight size={18} />
+            {t('Go to sign in')} <ArrowUpRight size={18} />
           </a>
           <Button variant="ghost" onClick={() => void load()} disabled={busy}>
-            Check again
+            {t('Check again')}
           </Button>
         </section>
       </main>
@@ -502,11 +504,11 @@ export default function Workspace({ userName }: { userName: string }) {
               width={1206}
               height={489.84}
             />
-            <span>Centre workspace</span>
+            <span>{t('Centre workspace')}</span>
           </div>
         </SidebarHeader>
         <SidebarContent>
-          <p className="nav-caption">WORKSPACE</p>
+          <p className="nav-caption">{t('WORKSPACE')}</p>
           <SidebarMenu>
             {navigation.map((n) => (
               <SidebarMenuItem key={n.label}>
@@ -515,7 +517,7 @@ export default function Workspace({ userName }: { userName: string }) {
                   onClick={() => navigate(n.label)}
                 >
                   <n.icon size={19} />
-                  <span>{n.label}</span>
+                  <span>{t(n.label)}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
@@ -523,34 +525,32 @@ export default function Workspace({ userName }: { userName: string }) {
           <div className="sidebar-note">
             <ShieldCheck size={18} />
             <p>
-              Private workspace
+              {t('Private workspace')}{' '}
               <span>
                 {role === 'TA'
-                  ? 'Assigned classes only'
-                  : 'Source balances preserved'}
+                  ? t('Assigned classes only')
+                  : t('Source balances preserved')}
               </span>
             </p>
           </div>
         </SidebarContent>
         <SidebarFooter>
           <a className="help-button" href="/change-password">
-            <KeyRound size={17} />
-            Change my password
+            <KeyRound size={17} /> {t('Change my password')}
           </a>
           <button className="help-button" onClick={() => setHelp(true)}>
-            <HelpCircle size={17} />
-            How to use your workspace
+            <HelpCircle size={17} /> {t('How to use your workspace')}
           </button>
           <div className="identity">
             <div className="avatar">{role === 'TA' ? 'TA' : role[0]}</div>
             <div>
               <strong>{snapshot?.actor.name ?? userName}</strong>
-              <span>{role === 'TA' ? 'Teaching Assistant' : role}</span>
+              <span>{t(role === 'TA' ? 'Teaching Assistant' : role)}</span>
             </div>
             <button
               className="signout"
               onClick={() => void signOut()}
-              aria-label="Sign out"
+              aria-label={t('Sign out')}
             >
               <LogOut size={15} />
             </button>
@@ -561,23 +561,24 @@ export default function Workspace({ userName }: { userName: string }) {
         <header className="topbar">
           <div className="breadcrumb">
             <SidebarTrigger />
-            <span>Workspace</span>
+            <span>{t('Workspace')}</span>
             <span>/</span>
-            <strong>{view}</strong>
+            <strong>{t(view)}</strong>
           </div>
           <div className="topbar-right">
+            <LanguageSwitch />
             <span className="secure">
               <span />
               {error
-                ? 'Refresh needed'
+                ? t('Refresh needed')
                 : snapshot
-                  ? 'Connected · ' + role
-                  : 'Private workspace'}
+                  ? t('Connected · ') + t(role)
+                  : t('Private workspace')}
             </span>
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Refresh latest records"
+              aria-label={t('Refresh latest records')}
               onClick={() => void load()}
               disabled={busy}
             >
@@ -589,10 +590,10 @@ export default function Workspace({ userName }: { userName: string }) {
           <div className="page-heading">
             <div>
               <p className="eyebrow">
-                {role === 'TA' ? 'TEACHING WORKSPACE' : 'BEN OXFORD HUB'}
+                {role === 'TA' ? t('TEACHING WORKSPACE') : 'BEN OXFORD HUB'}
               </p>
-              <h1>{title[view]}</h1>
-              <p>{subtitles[view]}</p>
+              <h1>{t(title[view])}</h1>
+              <p>{t(subtitles[view])}</p>
             </div>
             {snapshot && primary[view] && canCreate && (
               <Button
@@ -608,35 +609,36 @@ export default function Workspace({ userName }: { userName: string }) {
                 }
               >
                 <Plus size={17} />
-                {primary[view][1]}
+                {t(primary[view][1])}
               </Button>
             )}
           </div>
           {error && (
             <div className="error-message" role="alert">
               <AlertCircle size={18} />
-              <span>{error}</span>
+              <span>{message(error)}</span>
               <Button variant="outline" onClick={() => void load()}>
-                Retry
+                {t('Retry')}
               </Button>
-              {!snapshot && <a href="/login">Sign in</a>}
+              {!snapshot && <a href="/login">{t('Sign in')}</a>}
             </div>
           )}
           {progress !== null && (
             <section className="panel import-progress">
-              <h2>Bringing in your existing records</h2>
+              <h2>{t('Bringing in your existing records')}</h2>
               <p>
-                Attendance, packages, finance and original history. No re-entry
-                needed.
+                {t(
+                  'Attendance, packages, finance and original history. No re-entry needed.',
+                )}
               </p>
-              <Progress value={progress} aria-label="Import progress" />
+              <Progress value={progress} aria-label={t('Import progress')} />
               <strong>{progress}%</strong>
             </section>
           )}
           {!snapshot && !error && progress === null && (
             <div className="connecting">
               <Loader2 className="spin" />
-              <span>Opening your private workspace…</span>
+              <span>{t('Opening your private workspace…')}</span>
             </div>
           )}
           {snapshot && (
@@ -644,50 +646,56 @@ export default function Workspace({ userName }: { userName: string }) {
               {view === homeView(role) && (
                 <section
                   className="workspace-welcome"
-                  aria-label="Your workspace home"
+                  aria-label={t('Your workspace home')}
                 >
                   <div className="workspace-welcome-copy">
                     <span className={'role-label role-' + role.toLowerCase()}>
-                      {role === 'TA' ? 'TEACHING TEAM' : role.toUpperCase()}{' '}
-                      WORKSPACE
+                      {t(role === 'TA' ? 'TEACHING TEAM' : role.toUpperCase())}{' '}
+                      {t('WORKSPACE')}
                     </span>
-                    <h2>Welcome back, {snapshot.actor.name || userName}.</h2>
+                    <h2>
+                      {t('Welcome back,')} {snapshot.actor.name || userName}.
+                    </h2>
                     <p>
                       {role === 'TA'
-                        ? 'Your classes. Your students. One clear place to begin.'
+                        ? t(
+                            'Your classes. Your students. One clear place to begin.',
+                          )
                         : role === 'Finance'
-                          ? 'Every payment, every package. A clear view of the month.'
-                          : 'Your people, classes and finances. Connected.'}
+                          ? t(
+                              'Every payment, every package. A clear view of the month.',
+                            )
+                          : t('Your people, classes and finances. Connected.')}
                     </p>
                     <div className="welcome-shortcuts">
                       {role === 'Director' ? (
                         <>
                           <button onClick={() => navigate('Attendance')}>
-                            <CalendarCheck2 size={16} /> Attendance{' '}
+                            <CalendarCheck2 size={16} /> {t('Attendance')}{' '}
                             <ArrowUpRight size={14} />
                           </button>
                           <button onClick={() => navigate('Finance')}>
-                            <Wallet size={16} /> Monthly finance{' '}
+                            <Wallet size={16} /> {t('Monthly finance')}{' '}
                             <ArrowUpRight size={14} />
                           </button>
                           <button onClick={() => navigate('Team & access')}>
-                            <Users size={16} /> My team{' '}
+                            <Users size={16} /> {t('My team')}{' '}
                             <ArrowUpRight size={14} />
                           </button>
                         </>
                       ) : role === 'Finance' ? (
                         <>
                           <button onClick={() => open('receipt')}>
-                            <Plus size={16} /> Record payment
+                            <Plus size={16} /> {t('Record payment')}
                           </button>
                           <button onClick={() => navigate('Renewals')}>
-                            <RefreshCw size={16} /> Renewal review{' '}
+                            <RefreshCw size={16} /> {t('Renewal review')}{' '}
                             <ArrowUpRight size={14} />
                           </button>
                         </>
                       ) : (
                         <button onClick={() => setHelp(true)}>
-                          <HelpCircle size={16} /> Attendance guide
+                          <HelpCircle size={16} /> {t('Attendance guide')}
                         </button>
                       )}
                     </div>
@@ -705,28 +713,28 @@ export default function Workspace({ userName }: { userName: string }) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Previous month"
+                    aria-label={t('Previous month')}
                     onClick={() => setMonth(shiftMonth(month, -1))}
                   >
                     <ChevronLeft />
                   </Button>
                   <input
                     type="month"
-                    aria-label="Reporting month"
+                    aria-label={t('Reporting month')}
                     value={month}
                     onChange={(e) => e.target.value && setMonth(e.target.value)}
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Next month"
+                    aria-label={t('Next month')}
                     onClick={() => setMonth(shiftMonth(month, 1))}
                   >
                     <ChevronRight />
                   </Button>
                 </div>
                 <div className="review-control">
-                  <label htmlFor="review-date">Review through</label>
+                  <label htmlFor="review-date">{t('Review through')}</label>
                   <input
                     type="date"
                     id="review-date"
@@ -739,13 +747,16 @@ export default function Workspace({ userName }: { userName: string }) {
                 </div>
                 <span className="source-note" aria-live="polite">
                   {saved
-                    ? 'Saved at ' + saved
-                    : 'App refreshed ' +
-                      new Date(snapshot.loadedAt).toLocaleTimeString('en-GB', {
-                        timeZone: 'Asia/Ho_Chi_Minh',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                    ? t('Saved at ') + saved
+                    : t('App refreshed ') +
+                      new Date(snapshot.loadedAt).toLocaleTimeString(
+                        intlLocale,
+                        {
+                          timeZone: 'Asia/Ho_Chi_Minh',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        },
+                      )}
                 </span>
               </div>
               {missing > 0 &&
@@ -754,11 +765,12 @@ export default function Workspace({ userName }: { userName: string }) {
                     <CalendarCheck2 size={18} />
                     <p>
                       <strong>
-                        {missing} lesson marks are still blank through{' '}
+                        {missing} {t('lesson marks are still blank through')}{' '}
                         {reviewDate}.
                       </strong>{' '}
-                      Renewal dates remain estimates until attendance is up to
-                      date.
+                      {t(
+                        'Renewal dates remain estimates until attendance is up to date.',
+                      )}
                     </p>
                   </div>
                 )}
@@ -771,17 +783,17 @@ export default function Workspace({ userName }: { userName: string }) {
                     onChange={setSearch}
                     placeholder={
                       view === 'Finance'
-                        ? 'Search payer, description or account…'
-                        : 'Search student or lesson…'
+                        ? t('Search payer, description or account…')
+                        : t('Search student or lesson…')
                     }
                   />
                   {!['Attendance', 'Leads'].includes(view) && (
                     <Choice
-                      label="All classes"
+                      label={t('All classes')}
                       value={classFilter}
                       onChange={setClassFilter}
                       options={[
-                        { value: '', label: 'All classes' },
+                        { value: '', label: t('All classes') },
                         ...classes.map((c) => ({ value: c.id, label: c.name })),
                       ]}
                     />
@@ -814,9 +826,10 @@ export default function Workspace({ userName }: { userName: string }) {
       <Sheet open={!!studentId} onOpenChange={(o) => !o && setStudentId('')}>
         <SheetContent className="student-sheet">
           <SheetHeader>
-            <SheetTitle>{st?.name ?? 'Student'}</SheetTitle>
+            <SheetTitle>{st?.name ?? t('Student')}</SheetTitle>
             <SheetDescription>
-              One student record · balances as at {profileDate || reviewDate}
+              {t('One student record · balances as at')}{' '}
+              {profileDate || reviewDate}
             </SheetDescription>
           </SheetHeader>
           {st && snapshot && (
@@ -835,81 +848,78 @@ export default function Workspace({ userName }: { userName: string }) {
       <Sheet open={help} onOpenChange={setHelp}>
         <SheetContent className="student-sheet">
           <SheetHeader>
-            <SheetTitle>Your daily workflow</SheetTitle>
+            <SheetTitle>{t('Your daily workflow')}</SheetTitle>
             <SheetDescription>
-              Start with the task you need to do.
+              {t('Start with the task you need to do.')}
             </SheetDescription>
           </SheetHeader>
           <div className="detail-body help-content">
             {role === 'TA' ? (
               <>
-                <h2>Take attendance</h2>
+                <h2>{t('Take attendance')}</h2>
                 <p>
-                  Open Attendance, choose your class and month, then use the
-                  lesson cell: P present, T late, A absent, N not scheduled.
-                  Each change saves immediately.
+                  {t(
+                    'Open Attendance, choose your class and month, then use the lesson cell: P present, T late, A absent, N not scheduled. Each change saves immediately.',
+                  )}
                 </p>
-                <h2>Complete a makeup</h2>
+                <h2>{t('Complete a makeup')}</h2>
                 <p>
-                  Open Makeup lessons, add the student, select their original
-                  absence and choose the makeup date. Mark it Completed after
-                  the lesson. Do not change the original absence to present.
+                  {t(
+                    'Open Makeup lessons, add the student, select their original absence and choose the makeup date. Mark it Completed after the lesson. Do not change the original absence to present.',
+                  )}
                 </p>
               </>
             ) : (
               <>
-                <h2>See this month’s money</h2>
+                <h2>{t('See this month’s money')}</h2>
                 <p>
-                  Choose the month at the top. Overview shows collections and
-                  expenses; Finance shows every receipt and payment.
+                  {t(
+                    'Choose the month at the top. Overview shows collections and expenses; Finance shows every receipt and payment.',
+                  )}
                 </p>
-                <h2>Record a payment</h2>
+                <h2>{t('Record a payment')}</h2>
                 <p>
-                  Click Record payment. Enter the actual payment date and
-                  amount. Select the student and their purchased package. Use
-                  the family split option for a payment covering several
-                  students.
+                  {t(
+                    'Click Record payment. Enter the actual payment date and amount. Select the student and their purchased package. Use the family split option for a payment covering several students.',
+                  )}
                 </p>
-                <h2>Add a renewal</h2>
+                <h2>{t('Add a renewal')}</h2>
                 <p>
-                  Open Packages and Add package. Select the student, sessions
-                  and actual agreed fee. Each renewal keeps its own history.
-                  Then record the payment separately.
+                  {t(
+                    'Open Packages and Add package. Select the student, sessions and actual agreed fee. Each renewal keeps its own history. Then record the payment separately.',
+                  )}
                 </p>
-                <h2>Add or transfer a student</h2>
+                <h2>{t('Add or transfer a student')}</h2>
                 <p>
-                  Director: use Students → Add student. Changing a student’s
-                  home class creates a new membership and retains the old class
-                  history.
+                  {t(
+                    'Director: use Students → Add student. Changing a student’s home class creates a new membership and retains the old class history.',
+                  )}
                 </p>
-                <h2>See next month’s renewals</h2>
+                <h2>{t('See next month’s renewals')}</h2>
                 <p>
-                  Open Renewals and choose next month. The list contains
-                  students and expected dates, not guessed future fees.
+                  {t(
+                    'Open Renewals and choose next month. The list contains students and expected dates, not guessed future fees.',
+                  )}
                 </p>
-                <h2>Give staff access</h2>
+                <h2>{t('Give staff access')}</h2>
                 <p>
-                  Add the staff member’s individual email under Team & access
-                  and choose their role. TAs also need their classes assigned.
-                  Arrange an individual temporary password before their first
-                  sign-in; do not give anyone your own login.
+                  {t(
+                    'Add the staff member’s individual email under Team & access and choose their role. TAs also need their classes assigned. Arrange an individual temporary password before their first sign-in; do not give anyone your own login.',
+                  )}
                 </p>
               </>
             )}
-            <h2>Original history</h2>
+            <h2>{t('Original history')}</h2>
             <p>
-              All original class history is visible by choosing an earlier
-              month. Historical makeup and support entries appear in their
-              lesson tables. Opening package balances are preserved from 8
-              September 2026.
+              {t(
+                'All original class history is visible by choosing an earlier month. Historical makeup and support entries appear in their lesson tables. Opening package balances are preserved from 8 September 2026.',
+              )}
             </p>
-            <h2>Important distinctions</h2>
+            <h2>{t('Important distinctions')}</h2>
             <p>
-              Cash collected is not earned revenue or accounting profit. A
-              renewal forecast is not an unpaid bill. Missing historical payment
-              dates are not invented. Attendance and finance share one saved
-              database; open screens refresh each minute or when you return to
-              the window.
+              {t(
+                'Cash collected is not earned revenue or accounting profit. A renewal forecast is not an unpaid bill. Missing historical payment dates are not invented. Attendance and finance share one saved database; open screens refresh each minute or when you return to the window.',
+              )}
             </p>
           </div>
         </SheetContent>

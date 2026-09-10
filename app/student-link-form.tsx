@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '@/app/language';
 import { useState } from 'react';
 import {
   Dialog,
@@ -23,6 +24,7 @@ export default function StudentLinkForm({
   onClose: () => void;
   onSaved: (record: DataRecord) => Promise<void>;
 }) {
+  const { t, message } = useLanguage();
   const [studentId, setStudentId] = useState(''),
     [reason, setReason] = useState(''),
     [busy, setBusy] = useState(false),
@@ -60,10 +62,11 @@ export default function StudentLinkForm({
     <Dialog open onOpenChange={(v) => !v && !busy && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Match original lesson to a student</DialogTitle>
+          <DialogTitle>{t('Match original lesson to a student')}</DialogTitle>
           <DialogDescription>
-            This connects the existing record to the student's profile. It does
-            not add a lesson, change attendance or deduct sessions.
+            {t(
+              "This connects the existing record to the student's profile. It does not add a lesson, change attendance or deduct sessions.",
+            )}
           </DialogDescription>
         </DialogHeader>
         <p className="source-note-text">
@@ -73,10 +76,10 @@ export default function StudentLinkForm({
         </p>
         <form onSubmit={save} className="form-grid">
           <div className="form-field wide">
-            <label htmlFor="link-student">Confirmed student</label>
+            <label htmlFor="link-student">{t('Confirmed student')}</label>
             <Picker
               id="link-student"
-              label="Choose the matching student"
+              label={t('Choose the matching student')}
               value={studentId}
               onChange={setStudentId}
               options={students.map((s) => ({
@@ -90,7 +93,7 @@ export default function StudentLinkForm({
           </div>
           <div className="form-field wide">
             <label htmlFor="link-evidence">
-              How did you confirm the match?
+              {t('How did you confirm the match?')}
             </label>
             <textarea
               id="link-evidence"
@@ -99,12 +102,14 @@ export default function StudentLinkForm({
               maxLength={1000}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="For example: checked full name and parent in the original class roster."
+              placeholder={t(
+                'For example: checked full name and parent in the original class roster.',
+              )}
             />
           </div>
           {error && (
             <p className="error-message wide" role="alert">
-              {error}
+              {message(error)}
             </p>
           )}
           <DialogFooter className="wide">
@@ -114,13 +119,13 @@ export default function StudentLinkForm({
               disabled={busy}
               onClick={onClose}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button
               type="submit"
               disabled={busy || !studentId || reason.trim().length < 3}
             >
-              {busy ? 'Linking…' : 'Confirm student match'}
+              {busy ? t('Linking…') : t('Confirm student match')}
             </Button>
           </DialogFooter>
         </form>

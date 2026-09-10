@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '@/app/language';
 
 import * as React from 'react';
 import { Combobox as ComboboxPrimitive } from '@base-ui/react';
@@ -37,9 +38,11 @@ function ComboboxTrigger({
 }
 
 function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
+  const { t } = useLanguage();
   return (
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
+      aria-label={t('Clear selection')}
       render={<InputGroupButton variant="ghost" size="icon-xs" />}
       className={cn(className)}
       {...props}
@@ -60,6 +63,7 @@ function ComboboxInput({
   showTrigger?: boolean;
   showClear?: boolean;
 }) {
+  const { t } = useLanguage();
   return (
     <InputGroup className={cn('w-auto', className)}>
       <ComboboxPrimitive.Input
@@ -70,6 +74,7 @@ function ComboboxInput({
         {showTrigger && (
           <InputGroupButton
             size="icon-xs"
+            aria-label={t('Show options')}
             variant="ghost"
             render={<ComboboxTrigger />}
             data-slot="input-group-button"
@@ -240,6 +245,7 @@ function ComboboxChip({
 }: ComboboxPrimitive.Chip.Props & {
   showRemove?: boolean;
 }) {
+  const { t } = useLanguage();
   return (
     <ComboboxPrimitive.Chip
       data-slot="combobox-chip"
@@ -255,6 +261,7 @@ function ComboboxChip({
           render={<Button variant="ghost" size="icon-xs" />}
           className="-ml-1 opacity-50 hover:opacity-100"
           data-slot="combobox-chip-remove"
+          aria-label={t('Remove selection')}
         >
           <XIcon className="pointer-events-none" />
         </ComboboxPrimitive.ChipRemove>

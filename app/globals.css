@@ -230,6 +230,71 @@ small {
   font-size: 0.85rem;
   color: #8a96a8;
 }
+.language-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  color: #0c3049;
+  flex-shrink: 0;
+}
+.language-switch > svg {
+  margin: 0 5px;
+}
+.language-switch button {
+  padding: 7px 9px;
+  font-size: 0.875rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.language-switch button[aria-pressed='true'] {
+  color: #fff;
+  background: #0c3049;
+}
+.language-switch button:focus-visible {
+  outline: 2px solid #b08d38;
+  outline-offset: 3px;
+}
+.welcome-signin > .language-switch {
+  align-self: flex-end;
+  margin-bottom: 20px;
+}
+.password-card > .language-switch {
+  display: flex;
+  width: fit-content;
+  margin: 0 0 24px auto;
+}
+html[lang='vi'] .welcome-story h1 {
+  font-size: clamp(2rem, 3.6vw, 4rem);
+  line-height: 1.2;
+}
+html[lang='vi'] .welcome-form h2 {
+  line-height: 1.3;
+}
+@media (max-width: 760px) {
+  .topbar .secure {
+    display: none;
+  }
+  .topbar .breadcrumb > span,
+  .topbar .breadcrumb > strong {
+    display: none;
+  }
+  .topbar-right {
+    gap: 6px;
+  }
+  .language-switch > svg {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  html[lang='vi'] .welcome-story h1 {
+    font-size: 1.6rem;
+  }
+}
 .breadcrumb strong {
   color: #44536b;
   font-weight: 500;

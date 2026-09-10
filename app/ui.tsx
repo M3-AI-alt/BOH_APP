@@ -1,5 +1,7 @@
 'use client';
 import type { ReactNode } from 'react';
+import { Children } from 'react';
+import { useLanguage } from './language';
 import {
   Select,
   SelectTrigger,
@@ -31,6 +33,7 @@ export function Choice({
   label,
   disabled = false,
   id,
+  translateOptions = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -38,22 +41,25 @@ export function Choice({
   label: string;
   disabled?: boolean;
   id?: string;
+  translateOptions?: boolean;
 }) {
+  const { t } = useLanguage();
+  const display = (text: string) => (translateOptions ? t(text) : text);
   return (
     <Select
       value={value || '__none'}
       onValueChange={(v) => onChange(v === '__none' ? '' : String(v ?? ''))}
       disabled={disabled}
     >
-      <SelectTrigger id={id} aria-label={label} className="choice">
+      <SelectTrigger id={id} aria-label={t(label)} className="choice">
         <SelectValue>
-          {options.find((o) => o.value === value)?.label || label}
+          {display(options.find((o) => o.value === value)?.label || t(label))}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((o) => (
           <SelectItem key={o.value || '__none'} value={o.value || '__none'}>
-            {o.label}
+            {display(o.label)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -73,6 +79,7 @@ export function Picker({
   label: string;
   id?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <Combobox
       items={options}
@@ -80,9 +87,14 @@ export function Picker({
       onValueChange={(v) => onChange(v?.id ?? '')}
       itemToStringLabel={(o) => o.label}
     >
-      <ComboboxInput id={id} aria-label={label} placeholder={label} showClear />
+      <ComboboxInput
+        id={id}
+        aria-label={t(label)}
+        placeholder={t(label)}
+        showClear
+      />
       <ComboboxContent>
-        <ComboboxEmpty>No matching records</ComboboxEmpty>
+        <ComboboxEmpty>{t('No matching records')}</ComboboxEmpty>
         <ComboboxList>
           {(item: any) => (
             <ComboboxItem key={item.id} value={item}>
@@ -101,7 +113,8 @@ export function Badge({
   children: ReactNode;
   tone?: string;
 }) {
-  const t =
+  const { t } = useLanguage();
+  const resolvedTone =
     tone ??
     (/Overdue|Unpaid/i.test(String(children))
       ? 'red'
@@ -111,14 +124,21 @@ export function Badge({
         ? 'amber'
         : /Renewal|Planned|Expected|Trial|Transferred/i.test(String(children))
           ? 'blue'
-          : /Paid|Covered|^Active$|Completed|^Open$|^Recorded$/i.test(
+          : /Paid|Covered|^Active$|^Account active$|Completed|^Open$|^Recorded$/i.test(
                 String(children),
               )
             ? 'green'
             : 'grey');
-  return <span className={'badge ' + t}>{children}</span>;
+  return (
+    <span className={'badge ' + resolvedTone}>
+      {Children.map(children, (child) =>
+        typeof child === 'string' ? t(child) : child,
+      )}
+    </span>
+  );
 }
 export function ClassTag({ cl }: { cl: any }) {
+  const { t } = useLanguage();
   return (
     <span
       className="class-tag"
@@ -128,7 +148,7 @@ export function ClassTag({ cl }: { cl: any }) {
       }}
     >
       <i style={{ background: cl?.color ?? '#8895aa' }} />
-      {cl?.name?.replace('BOH ', '') ?? 'No class'}
+      {cl?.name?.replace('BOH ', '') ?? t('No class')}
     </span>
   );
 }
@@ -139,16 +159,17 @@ export function LessonClass({
   lesson: any;
   classes: any[];
 }) {
+  const { t } = useLanguage();
   return (
     <div className="long-cell">
       {lesson.classId ? (
         <ClassTag cl={classes.find((c) => c.id === lesson.classId)} />
       ) : (
-        <span>{lesson.className || 'Home class not recorded'}</span>
+        <span>{lesson.className || t('Home class not recorded')}</span>
       )}
       {lesson.makeupClassId && (
         <small>
-          Makeup class:{' '}
+          {t('Makeup class:')}{' '}
           {classes.find((c) => c.id === lesson.makeupClassId)?.name ||
             lesson.makeupClass}
         </small>
@@ -165,14 +186,15 @@ export function SearchBox({
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="search-box">
       <Search size={17} />
       <input
-        aria-label={placeholder}
+        aria-label={t(placeholder)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={t(placeholder)}
       />
     </div>
   );
@@ -184,11 +206,12 @@ export function Empty({
   title?: string;
   detail?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="empty-state">
       <Inbox size={28} />
-      <strong>{title}</strong>
-      <p>{detail}</p>
+      <strong>{t(title)}</strong>
+      <p>{t(detail)}</p>
     </div>
   );
 }
@@ -199,12 +222,13 @@ export function DataTable({
   headings: string[];
   rows: ReactNode[][];
 }) {
+  const { t } = useLanguage();
   return rows.length ? (
     <Table>
       <TableHeader>
         <TableRow>
           {headings.map((h, i) => (
-            <TableHead key={i}>{h}</TableHead>
+            <TableHead key={i}>{t(h)}</TableHead>
           ))}
         </TableRow>
       </TableHeader>
@@ -236,12 +260,13 @@ export function Panel({
   action?: ReactNode;
   children: ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
-          <h2>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
+          <h2>{t(title)}</h2>
+          {subtitle && <p>{t(subtitle)}</p>}
         </div>
         {action}
       </div>

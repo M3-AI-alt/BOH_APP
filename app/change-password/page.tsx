@@ -1,7 +1,10 @@
 'use client';
+import { useLanguage } from '@/app/language';
+import { LanguageSwitch } from '../language';
 import { useEffect, useState } from 'react';
 import { LockKeyhole, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 export default function ChangePassword() {
+  const { t, message } = useLanguage();
   const [account, setAccount] = useState<{
     name: string;
     email: string;
@@ -67,6 +70,7 @@ export default function ChangePassword() {
   return (
     <main className="password-page">
       <section className="password-card">
+        <LanguageSwitch />
         <img
           src="/brand/boh-navy.svg"
           alt="Ben Oxford Hub"
@@ -76,16 +80,20 @@ export default function ChangePassword() {
         <div className="password-symbol">
           <LockKeyhole size={23} />
         </div>
-        <p className="eyebrow">YOUR ACCOUNT, YOUR PASSWORD</p>
+        <p className="eyebrow">{t('YOUR ACCOUNT, YOUR PASSWORD')}</p>
         <h1>
           {account?.mustChangePassword
-            ? 'Make it yours.'
-            : 'Change your password.'}
+            ? t('Make it yours.')
+            : t('Change your password.')}
         </h1>
         <p>
           {account?.mustChangePassword
-            ? 'Choose a personal password before opening your workspace. Your temporary password will stop working.'
-            : 'Choose a new password. Other signed-in sessions will be closed.'}
+            ? t(
+                'Choose a personal password before opening your workspace. Your temporary password will stop working.',
+              )
+            : t(
+                'Choose a new password. Other signed-in sessions will be closed.',
+              )}
         </p>
         {account && (
           <div className="password-account">
@@ -95,17 +103,19 @@ export default function ChangePassword() {
         )}
         {error && (
           <p className="login-error" role="alert">
-            {error}
+            {message(error)}
           </p>
         )}
         {!account && !error && (
-          <Loader2 className="spin" aria-label="Loading account" />
+          <Loader2 className="spin" aria-label={t('Loading account')} />
         )}
         {account && (
           <form className="staff-login-form" onSubmit={submit}>
             {!account.mustChangePassword && (
               <>
-                <label htmlFor="current-password">Current password</label>
+                <label htmlFor="current-password">
+                  {t('Current password')}
+                </label>
                 <input
                   id="current-password"
                   type="password"
@@ -118,7 +128,7 @@ export default function ChangePassword() {
                 />
               </>
             )}
-            <label htmlFor="new-password">New password</label>
+            <label htmlFor="new-password">{t('New password')}</label>
             <div className="password-input">
               <input
                 id="new-password"
@@ -133,17 +143,22 @@ export default function ChangePassword() {
               />
               <button
                 type="button"
-                aria-label={visible ? 'Hide new password' : 'Show new password'}
+                aria-label={
+                  visible ? t('Hide new password') : t('Show new password')
+                }
                 onClick={() => setVisible(!visible)}
               >
                 {visible ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
             <small>
-              At least 12 characters. A few unrelated words make a strong
-              password.
+              {t(
+                'At least 12 characters. A few unrelated words make a strong password.',
+              )}
             </small>
-            <label htmlFor="confirm-password">Confirm new password</label>
+            <label htmlFor="confirm-password">
+              {t('Confirm new password')}
+            </label>
             <input
               id="confirm-password"
               type="password"
@@ -160,7 +175,9 @@ export default function ChangePassword() {
               type="submit"
               disabled={busy}
             >
-              {busy ? 'Securing your account…' : 'Save password & continue'}
+              {busy
+                ? t('Securing your account…')
+                : t('Save password & continue')}
               {busy ? (
                 <Loader2 size={18} className="spin" />
               ) : (
@@ -170,7 +187,7 @@ export default function ChangePassword() {
           </form>
         )}
         <a className="password-back" href="/login">
-          Back to sign in
+          {t('Back to sign in')}
         </a>
       </section>
     </main>

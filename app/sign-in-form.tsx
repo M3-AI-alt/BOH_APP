@@ -1,7 +1,9 @@
 'use client';
+import { useLanguage } from '@/app/language';
 import { useState } from 'react';
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 export default function SignInForm() {
+  const { t, message } = useLanguage();
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false),
@@ -32,9 +34,7 @@ export default function SignInForm() {
   }
   return (
     <form className="staff-login-form" onSubmit={submit}>
-      <label htmlFor="staff-email">
-        Work email <span>/ Email</span>
-      </label>
+      <label htmlFor="staff-email">{t('Work email')}</label>
       <input
         id="staff-email"
         type="email"
@@ -45,12 +45,10 @@ export default function SignInForm() {
         maxLength={200}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
+        placeholder={t('you@example.com')}
         disabled={busy}
       />
-      <label htmlFor="staff-password">
-        Password <span>/ Mật khẩu</span>
-      </label>
+      <label htmlFor="staff-password">{t('Password')}</label>
       <div className="password-input">
         <input
           id="staff-password"
@@ -64,7 +62,7 @@ export default function SignInForm() {
         />
         <button
           type="button"
-          aria-label={visible ? 'Hide password' : 'Show password'}
+          aria-label={visible ? t('Hide password') : t('Show password')}
           aria-pressed={visible}
           onClick={() => setVisible(!visible)}
         >
@@ -73,11 +71,11 @@ export default function SignInForm() {
       </div>
       {error && (
         <p className="login-error" role="alert">
-          {error}
+          {message(error)}
         </p>
       )}
       <button className="welcome-signin-button" type="submit" disabled={busy}>
-        {busy ? 'Signing in…' : 'Sign in to your workspace'}
+        {busy ? t('Signing in…') : t('Sign in to your workspace')}
         {busy ? (
           <Loader2 size={18} className="spin" />
         ) : (
@@ -85,10 +83,11 @@ export default function SignInForm() {
         )}
       </button>
       <details className="welcome-help">
-        <summary>Forgot your password?</summary>
+        <summary>{t('Forgot your password?')}</summary>
         <p>
-          Ask Karam Ben to arrange a new temporary password for your individual
-          account. Never use another staff member’s login.
+          {t(
+            'Ask Karam Ben to arrange a new temporary password for your individual account. Never use another staff member’s login.',
+          )}
         </p>
       </details>
     </form>

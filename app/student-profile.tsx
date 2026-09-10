@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '@/app/language';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -16,8 +17,6 @@ import { Badge, ClassTag, DataTable, LessonClass } from './ui';
 import {
   allocations,
   entries,
-  money,
-  packageTitle,
   studentDeletionBlockers,
   studentReceiptShare,
 } from '@/lib/domain';
@@ -38,6 +37,7 @@ export default function StudentProfile({
   reload: () => Promise<void>;
   close: () => void;
 }) {
+  const { t, message, money, packageTitle } = useLanguage();
   const [action, setAction] = useState('');
   const [reason, setReason] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -84,7 +84,7 @@ export default function StudentProfile({
     ['Second / emergency contact', s.secondParent],
     ['Second phone', s.secondPhone],
     ['Address', s.address],
-    ['Enrolled', s.enrollmentDate],
+    ['Enrollment date', s.enrollmentDate],
     ['Pause from', s.pauseFrom],
     ['Resume on', s.resumeDate],
   ];
@@ -121,7 +121,8 @@ export default function StudentProfile({
       setBusy(false);
     }
   }
-  if (role === 'TA') return <p>Use your assigned class attendance page.</p>;
+  if (role === 'TA')
+    return <p>{t('Use your assigned class attendance page.')}</p>;
   return (
     <div className="detail-body">
       <div className="button-row">
@@ -131,22 +132,22 @@ export default function StudentProfile({
       </div>
       <div className="detail-stats">
         <div>
-          <span>Sessions remaining</span>
-          <strong>{s.sessions ?? 'Needs confirmation'}</strong>
+          <span>{t('Sessions remaining')}</span>
+          <strong>{s.sessions ?? t('Needs confirmation')}</strong>
           {s.overrun > 0 && (
             <small className="red-text">
-              {s.overrun} lessons beyond package
+              {s.overrun} {t('lessons beyond package')}
             </small>
           )}
         </div>
         <div>
-          <span>Known package balance due</span>
+          <span>{t('Known package balance due')}</span>
           <strong>
-            {unknownBalance ? 'Not available' : money(s.due)}
+            {unknownBalance ? t('Not available') : money(s.due)}
             {!unknownBalance && <small> VND</small>}
           </strong>
           {allPackages.some((p) => p.agreedFee == null || p.sourcePending) && (
-            <small>Some source terms need confirmation</small>
+            <small>{t('Some source terms need confirmation')}</small>
           )}
         </div>
       </div>
@@ -157,7 +158,7 @@ export default function StudentProfile({
             disabled={s.enrollmentStatus === 'Archived'}
             onClick={() => open('student', record)}
           >
-            Edit profile
+            {t('Edit profile')}
           </Button>
         )}
         {role === 'Director' && (
@@ -166,7 +167,7 @@ export default function StudentProfile({
             disabled={s.enrollmentStatus === 'Archived'}
             onClick={() => open('student', record, { transferDate: '' })}
           >
-            Transfer / pause
+            {t('Transfer / pause')}
           </Button>
         )}
         <Button
@@ -176,7 +177,7 @@ export default function StudentProfile({
             open('package', undefined, { studentId: s.id, classId: s.classId })
           }
         >
-          Add package / renewal
+          {t('Add package / renewal')}
         </Button>
         <Button
           variant="outline"
@@ -184,47 +185,51 @@ export default function StudentProfile({
             open('receipt', undefined, { studentId: s.id, name: s.name })
           }
         >
-          Record payment
+          {t('Record payment')}
         </Button>
       </div>
       <Tabs defaultValue="details">
         <TabsList className="profile-tabs">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="packages">Packages</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="history">Class history</TabsTrigger>
-          <TabsTrigger value="lessons">Makeup & support</TabsTrigger>
+          <TabsTrigger value="details">{t('Details')}</TabsTrigger>
+          <TabsTrigger value="packages">{t('Packages')}</TabsTrigger>
+          <TabsTrigger value="payments">{t('Payments')}</TabsTrigger>
+          <TabsTrigger value="history">{t('Class history')}</TabsTrigger>
+          <TabsTrigger value="lessons">{t('Makeup & support')}</TabsTrigger>
         </TabsList>
         <TabsContent value="details">
           <dl className="profile-details">
             {details.map(([label, value]) => (
               <div key={label}>
-                <dt>{label}</dt>
+                <dt>{t(label)}</dt>
                 <dd>{value || '—'}</dd>
               </div>
             ))}
           </dl>
           <section className="profile-note">
-            <h3>Learning goals</h3>
-            <p>{s.learningGoals || 'No learning goals added.'}</p>
+            <h3>{t('Learning goals')}</h3>
+            <p>{s.learningGoals || t('No learning goals added.')}</p>
           </section>
           <section className="profile-note">
-            <h3>Notes</h3>
-            <p>{s.notes || 'No notes added.'}</p>
+            <h3>{t('Notes')}</h3>
+            <p>{s.notes || t('No notes added.')}</p>
           </section>
           {s.source && (
-            <p className="source-note-text">Original record: {s.source}</p>
+            <p className="source-note-text">
+              {t('Original record:')} {s.source}
+            </p>
           )}
         </TabsContent>
         <TabsContent value="packages">
           <p className="profile-help">
-            Each card is one purchase. Session count identifies the package;
-            months are the advertised package name, not an expiry date.
+            {t(
+              'Each card is one purchase. Session count identifies the package; months are the advertised package name, not an expiry date.',
+            )}
           </p>
           {!allPackages.length && (
             <p>
-              No agreed package is linked. Review the source before creating
-              one.
+              {t(
+                'No agreed package is linked. Review the source before creating one.',
+              )}
             </p>
           )}
           {allPackages.map((p) => {
@@ -244,29 +249,29 @@ export default function StudentProfile({
                   </Badge>
                 </div>
                 <dl>
-                  <dt>Start date</dt>
-                  <dd>{p.startDate || 'Needs confirmation'}</dd>
-                  <dt>Sessions purchased</dt>
-                  <dd>{p.sessions ?? 'Needs confirmation'}</dd>
-                  <dt>Actual agreed / source value</dt>
+                  <dt>{t('Start date')}</dt>
+                  <dd>{p.startDate || t('Needs confirmation')}</dd>
+                  <dt>{t('Sessions purchased')}</dt>
+                  <dd>{p.sessions ?? t('Needs confirmation')}</dd>
+                  <dt>{t('Actual agreed / source value')}</dt>
                   <dd>
                     {p.agreedFee == null
-                      ? 'Needs confirmation'
-                      : `${money(p.agreedFee)} VND`}
+                      ? t('Needs confirmation')
+                      : t('{p1} VND', { p1: money(p.agreedFee) })}
                   </dd>
-                  <dt>Recorded paid at review date</dt>
+                  <dt>{t('Recorded paid at review date')}</dt>
                   <dd>
                     {computed?.paid == null
-                      ? 'Needs confirmation'
-                      : `${money(computed.paid)} VND`}
+                      ? t('Needs confirmation')
+                      : t('{p1} VND', { p1: money(computed.paid) })}
                   </dd>
-                  <dt>Sessions left at review date</dt>
+                  <dt>{t('Sessions left at review date')}</dt>
                   <dd>
                     {computed?.remaining ??
-                      'Not available for this review date'}
+                      t('Not available for this review date')}
                   </dd>
-                  <dt>Payment due date</dt>
-                  <dd>{p.dueDate || 'Not recorded'}</dd>
+                  <dt>{t('Payment due date')}</dt>
+                  <dd>{p.dueDate || t('Not recorded')}</dd>
                 </dl>
                 {p.sourceNote && (
                   <p className="source-note-text">{p.sourceNote}</p>
@@ -282,13 +287,14 @@ export default function StudentProfile({
                       )
                     }
                   >
-                    Edit agreement
+                    {t('Edit agreement')}
                   </Button>
                 )}
                 {p.imported && (
                   <p className="profile-help">
-                    Imported terms are preserved. A renewal is a new package,
-                    not an edit to this history.
+                    {t(
+                      'Imported terms are preserved. A renewal is a new package, not an edit to this history.',
+                    )}
                   </p>
                 )}
               </section>
@@ -297,9 +303,9 @@ export default function StudentProfile({
         </TabsContent>
         <TabsContent value="payments">
           <p className="profile-help">
-            All recorded dates. Student cash collected is separate from
-            allocation to a package. Family receipts include only this student's
-            confirmed share.
+            {t(
+              "All recorded dates. Student cash collected is separate from allocation to a package. Family receipts include only this student's confirmed share.",
+            )}
           </p>
           <DataTable
             headings={[
@@ -312,26 +318,27 @@ export default function StudentProfile({
             rows={payments
               .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
               .map((r) => [
-                r.date || 'Date not recorded',
+                r.date || t('Date not recorded'),
                 money(r.amount),
                 money(studentReceiptShare(r, s.id)),
-                r.purpose || 'Tuition',
+                t(r.purpose || 'Tuition'),
                 allocations(r).some((a: any) => a.studentId === s.id)
-                  ? 'Package linked'
-                  : 'Student identified · package not matched',
+                  ? t('Package linked')
+                  : t('Student identified · package not matched'),
               ])}
           />
         </TabsContent>
         <TabsContent value="lessons">
           <p className="profile-help">
-            The same linked records shown in Attendance. Historical records do
-            not deduct sessions again; free support never uses package sessions.
+            {t(
+              'The same linked records shown in Attendance. Historical records do not deduct sessions again; free support never uses package sessions.',
+            )}
           </p>
           <DataTable
             headings={['Date', 'Type', 'Class', 'Details', 'Status']}
             rows={lessons.map((r) => [
-              r.date || 'Not recorded',
-              r.kind === 'makeup' ? 'Makeup' : 'Free support',
+              r.date || t('Not recorded'),
+              r.kind === 'makeup' ? t('Makeup') : t('Free support'),
               <LessonClass lesson={r} classes={classes} />,
               <div className="long-cell">
                 {r.notes || '—'}
@@ -343,7 +350,7 @@ export default function StudentProfile({
           />
         </TabsContent>
         <TabsContent value="history">
-          <h3>Classes and transfers</h3>
+          <h3>{t('Classes and transfers')}</h3>
           <DataTable
             headings={['Class', 'From', 'Until', 'Timetable']}
             rows={memberships.map((m) => [
@@ -351,13 +358,13 @@ export default function StudentProfile({
                 key={m.id}
                 cl={classes.find((c) => c.id === m.classId)}
               />,
-              m.from || 'Imported history',
+              m.from || t('Imported history'),
               m.until ||
-                (m.forecast === false ? 'Historical roster' : 'Current'),
-              m.schedule || 'Regular',
+                (m.forecast === false ? t('Historical roster') : t('Current')),
+              t(m.schedule || 'Regular'),
             ])}
           />
-          <h3>Recent attendance</h3>
+          <h3>{t('Recent attendance')}</h3>
           <DataTable
             headings={['Date', 'Class', 'Attendance']}
             rows={attendance.slice(0, 50).map((a) => [
@@ -366,43 +373,47 @@ export default function StudentProfile({
                 key={a.id}
                 cl={classes.find((c) => c.id === a.classId)}
               />,
-              (
-                {
-                  C: 'Present',
-                  P: 'Present',
-                  M: 'Late',
-                  T: 'Late',
-                  L: 'Historical excused absence',
-                  K: 'Historical absence',
-                  A: 'Absent',
-                  N: 'Not scheduled',
-                } as Record<string, string>
-              )[a.mark] || a.mark,
+              t(
+                (
+                  {
+                    C: 'Present',
+                    P: 'Present',
+                    M: 'Late',
+                    T: 'Late',
+                    L: 'Historical excused absence',
+                    K: 'Historical absence',
+                    A: 'Absent',
+                    N: 'Not scheduled',
+                  } as Record<string, string>
+                )[a.mark] || a.mark,
+              ),
             ])}
           />
           {attendance.length > 50 && (
             <p className="profile-help">
-              Showing the latest 50 lessons. All lessons remain in class
-              attendance.
+              {t(
+                'Showing the latest 50 lessons. All lessons remain in class attendance.',
+              )}
             </p>
           )}
         </TabsContent>
       </Tabs>
       {role === 'Director' && (
         <section className="profile-lifecycle">
-          <h3>Manage student record</h3>
+          <h3>{t('Manage student record')}</h3>
           <p>
-            Archive removes a student from current lists and future renewal
-            follow-up. Attendance, packages and receipts stay available.
+            {t(
+              'Archive removes a student from current lists and future renewal follow-up. Attendance, packages and receipts stay available.',
+            )}
           </p>
           <div className="button-row">
             {s.enrollmentStatus === 'Archived' ? (
               <Button variant="outline" onClick={() => chooseAction('restore')}>
-                Restore student
+                {t('Restore student')}
               </Button>
             ) : (
               <Button variant="outline" onClick={() => chooseAction('archive')}>
-                Archive student
+                {t('Archive student')}
               </Button>
             )}
             <Button
@@ -410,16 +421,16 @@ export default function StudentProfile({
               disabled={!canDelete}
               onClick={() => chooseAction('delete')}
             >
-              Delete permanently
+              {t('Delete permanently')}
             </Button>
           </div>
           {!canDelete && (
             <p className="profile-help">
-              Permanent deletion is unavailable:{' '}
+              {t('Permanent deletion is unavailable:')}{' '}
               {imported
-                ? 'this student comes from an original source workbook'
-                : `${dependencies.length} linked records exist`}
-              . Archive the student to preserve your records.
+                ? t('this student comes from an original source workbook')
+                : t('{p1} linked records exist', { p1: dependencies.length })}
+              {t('. Archive the student to preserve your records.')}
             </p>
           )}
         </section>
@@ -432,21 +443,27 @@ export default function StudentProfile({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {action === 'delete'
-                ? 'Permanently delete'
+                ? t('Permanently delete')
                 : action === 'restore'
-                  ? 'Restore'
-                  : 'Archive'}{' '}
+                  ? t('Restore')
+                  : t('Archive')}{' '}
               {s.name}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               {action === 'delete'
-                ? 'This unused student and its empty roster entries will be deleted permanently. An audit entry is retained.'
+                ? t(
+                    'This unused student and its empty roster entries will be deleted permanently. An audit entry is retained.',
+                  )
                 : action === 'restore'
-                  ? 'The previous enrollment status will be restored. Existing history and balances will stay unchanged.'
-                  : 'This is reversible. Financial and attendance history will not be deleted.'}
+                  ? t(
+                      'The previous enrollment status will be restored. Existing history and balances will stay unchanged.',
+                    )
+                  : t(
+                      'This is reversible. Financial and attendance history will not be deleted.',
+                    )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <label htmlFor="student-action-reason">Reason</label>
+          <label htmlFor="student-action-reason">{t('Reason')}</label>
           <input
             id="student-action-reason"
             value={reason}
@@ -456,7 +473,7 @@ export default function StudentProfile({
           {action === 'delete' && (
             <>
               <label htmlFor="student-action-confirmation">
-                Type the student’s full name to confirm
+                {t('Type the student’s full name to confirm')}
               </label>
               <input
                 id="student-action-confirmation"
@@ -467,11 +484,11 @@ export default function StudentProfile({
           )}
           {error && (
             <p role="alert" className="error-message">
-              {error}
+              {message(error)}
             </p>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               variant={action === 'delete' ? 'destructive' : 'default'}
               disabled={
@@ -481,7 +498,15 @@ export default function StudentProfile({
               }
               onClick={lifecycle}
             >
-              {busy ? 'Saving…' : 'Confirm ' + action}
+              {busy
+                ? t('Saving…')
+                : t(
+                    action === 'delete'
+                      ? 'Confirm deletion'
+                      : action === 'restore'
+                        ? 'Confirm restore'
+                        : 'Confirm archive',
+                  )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

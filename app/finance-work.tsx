@@ -1,10 +1,12 @@
 'use client';
+import { useLanguage } from '@/app/language';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Panel, DataTable, Badge, Choice } from './ui';
-import { entries, money, cleanSearch, today } from '@/lib/domain';
+import { entries, cleanSearch, today } from '@/lib/domain';
 import type { ViewProps } from './views';
 export function Payroll(p: ViewProps) {
+  const { t, money } = useLanguage();
   const rows = entries(p.snapshot.records, 'payroll').filter(
       (r) =>
         r.month === p.month &&
@@ -13,14 +15,16 @@ export function Payroll(p: ViewProps) {
     expenses = entries(p.snapshot.records, 'expense');
   return (
     <Panel
-      title="Payroll / Bảng lương"
-      subtitle="Approved salary calculations are separate from actual cash payments. Tax and insurance amounts are entered and confirmed by your accountant."
+      title={t('Payroll / Bảng lương')}
+      subtitle={t(
+        'Approved salary calculations are separate from actual cash payments. Tax and insurance amounts are entered and confirmed by your accountant.',
+      )}
       action={
         <Button
           variant="outline"
           onClick={() => p.open('payroll', undefined, { month: p.month })}
         >
-          Add payroll entry
+          {t('Add payroll entry')}
         </Button>
       }
     >
@@ -51,7 +55,7 @@ export function Payroll(p: ViewProps) {
             r.imported ? (
               <span>
                 {money(r.sourceBankAmount)}
-                <small>Date not recorded</small>
+                <small>{t('Date not recorded')}</small>
               </span>
             ) : (
               '—'
@@ -70,7 +74,7 @@ export function Payroll(p: ViewProps) {
                   )
                 }
               >
-                Review
+                {t('Review')}
               </Button>
               {r.status === 'Approved' && r.net > paid && (
                 <Button
@@ -85,7 +89,7 @@ export function Payroll(p: ViewProps) {
                     })
                   }
                 >
-                  Record payment
+                  {t('Record payment')}
                 </Button>
               )}
             </div>,
@@ -93,14 +97,15 @@ export function Payroll(p: ViewProps) {
         })}
       />
       <p className="panel-foot">
-        Before approving an imported salary, check whether the payment already
-        exists in Expenses paid. Review status never changes cash totals. Record
-        a salary payment only when money is actually paid.
+        {t(
+          'Before approving an imported salary, check whether the payment already exists in Expenses paid. Review status never changes cash totals. Record a salary payment only when money is actually paid.',
+        )}
       </p>
     </Panel>
   );
 }
 export function AccountantTasks(p: ViewProps) {
+  const { t } = useLanguage();
   const [filter, setFilter] = useState('Open');
   const rows = entries(p.snapshot.records, 'task')
     .filter(
@@ -119,17 +124,19 @@ export function AccountantTasks(p: ViewProps) {
     );
   return (
     <Panel
-      title="Accountant tasks"
-      subtitle="Daily work, due dates and the original work diary. A logged source entry is not treated as a verified completed task."
+      title={t('Accountant tasks')}
+      subtitle={t(
+        'Daily work, due dates and the original work diary. A logged source entry is not treated as a verified completed task.',
+      )}
       action={
         <div className="button-row">
           <Choice
-            label="Task filter"
+            label={t('Task filter')}
             value={filter}
             onChange={setFilter}
             options={['Open', 'All', 'History'].map((v) => ({
               value: v,
-              label: v,
+              label: t(v === 'Open' ? 'Unfinished tasks' : v),
             }))}
           />
           <Button
@@ -138,7 +145,7 @@ export function AccountantTasks(p: ViewProps) {
               p.open('task', undefined, { assignedTo: 'Accountant' })
             }
           >
-            Add task
+            {t('Add task')}
           </Button>
         </div>
       }
@@ -155,17 +162,17 @@ export function AccountantTasks(p: ViewProps) {
         rows={rows.map((r) => [
           <span>
             {r.date || '—'}
-            <small>{r.dueDate ? 'Due ' + r.dueDate : ''}</small>
+            <small>{r.dueDate ? t('Due ') + r.dueDate : ''}</small>
           </span>,
           <div className="long-cell">
             <strong>{r.title}</strong>
             <details>
-              <summary>Details</summary>
+              <summary>{t('Details')}</summary>
               <p style={{ whiteSpace: 'pre-wrap' }}>{r.notes}</p>
             </details>
           </div>,
-          r.category,
-          r.assignedTo,
+          t(r.category || ''),
+          r.assignedTo === 'Accountant' ? t('Accountant') : r.assignedTo,
           <Badge
             tone={
               r.status === 'Done'
@@ -191,7 +198,7 @@ export function AccountantTasks(p: ViewProps) {
                 )
               }
             >
-              Update
+              {t('Update')}
             </Button>
           ),
         ])}

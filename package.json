@@ -12,7 +12,7 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
-    "test": "node --test scripts/test-domain.mjs scripts/test-student-server.mjs scripts/test-password-auth.mjs",
+    "test": "node --test scripts/test-domain.mjs scripts/test-student-server.mjs scripts/test-password-auth.mjs scripts/test-i18n.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

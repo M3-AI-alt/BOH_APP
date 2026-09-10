@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '@/app/language';
 import { useMemo, useState } from 'react';
 import {
   ArrowRight,
@@ -43,15 +44,12 @@ import {
   entries,
   cashSummary,
   studentReview,
-  monthLabel,
   shiftMonth,
   monthEnd,
   scheduledDates,
   today,
   cleanSearch,
-  money,
   allocations,
-  packageTitle,
   studentReceiptShare,
   linkedStudentNames,
 } from '@/lib/domain';
@@ -83,21 +81,23 @@ export function Metric({
   icon: any;
   tone?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <section className={'metric ' + (tone ?? '')}>
       <div className="metric-top">
-        <span>{label}</span>
+        <span>{t(label)}</span>
         <Icon size={19} />
       </div>
       <div className="metric-value">
         {value}
         <small>{unit}</small>
       </div>
-      <p>{detail}</p>
+      <p>{t(detail)}</p>
     </section>
   );
 }
 export function Overview(p: ViewProps) {
+  const { t, intlLocale, money, monthLabel } = useLanguage();
   const { records } = p.snapshot;
   const s = cashSummary(records, p.month, p.reviewDate),
     previous = cashSummary(
@@ -133,50 +133,48 @@ export function Overview(p: ViewProps) {
     <>
       <div className="metric-grid">
         <Metric
-          label="Money collected"
+          label={t('Money collected')}
           value={s.coverage ? money(s.collected) : '—'}
           unit="VND"
-          detail={s.receipts.length + ' receipts · actual payment dates'}
+          detail={s.receipts.length + t(' receipts · actual payment dates')}
           icon={Wallet}
           tone="blue"
         />
         <Metric
-          label="Expenses paid"
+          label={t('Expenses paid')}
           value={money(s.paid)}
           unit="VND"
           detail={
             s.pendingExpenses
-              ? s.pendingExpenses + ' text amounts not included'
-              : 'Net cash ' + money(s.net) + ' VND'
+              ? s.pendingExpenses + t(' text amounts not included')
+              : t('Net cash ') + money(s.net) + t(' VND')
           }
           icon={ArrowUpRight}
         />
         <Metric
-          label="Renewals this month"
+          label={t('Renewals this month')}
           value={String(thisDue.length)}
-          detail="Students expected to finish their sessions"
+          detail={t('Students expected to finish their sessions')}
           icon={CalendarCheck2}
         />
         <Metric
-          label="Renewals next month"
+          label={t('Renewals next month')}
           value={String(nextDue.length)}
-          detail={monthLabel(next) + ' · no assumed package price'}
+          detail={monthLabel(next) + t(' · no assumed package price')}
           icon={RefreshCw}
         />
       </div>
       <div className="overview-columns">
         <Panel
-          title="Your cash flow"
-          subtitle="Money received and paid, by month"
+          title={t('Your cash flow')}
+          subtitle={t('Money received and paid, by month')}
           action={
             <div className="chart-legend">
               <span>
-                <i />
-                Collected
+                <i /> {t('Collected')}
               </span>
               <span>
-                <i />
-                Expenses
+                <i /> {t('Expenses')}
               </span>
             </div>
           }
@@ -184,7 +182,9 @@ export function Overview(p: ViewProps) {
           <div
             className="cash-chart"
             role="img"
-            aria-label="Monthly collected money and expenses. Exact values appear beneath each month."
+            aria-label={t(
+              'Monthly collected money and expenses. Exact values appear beneath each month.',
+            )}
           >
             {series.map((s) => (
               <div className="chart-month" key={s.month}>
@@ -200,52 +200,60 @@ export function Overview(p: ViewProps) {
                 </div>
                 <strong>
                   {new Date(s.month + '-01T12:00Z').toLocaleDateString(
-                    'en-GB',
+                    intlLocale,
                     { month: 'short' },
                   )}
                 </strong>
                 <span>
                   {s.coverage
-                    ? money(s.collected / 1000000) + 'm'
-                    : 'Not supplied'}
+                    ? money(s.collected / 1000000) + t('m')
+                    : t('Not supplied')}
                 </span>
-                <small>{money(s.paid / 1000000)}m spent</small>
+                <small>
+                  {money(s.paid / 1000000)} {t('m spent')}
+                </small>
               </div>
             ))}
           </div>
           <div className="panel-foot">
-            Cash flow, not accounting profit. Amounts shown in million VND.
+            {t(
+              'Cash flow, not accounting profit. Amounts shown in million VND.',
+            )}
           </div>
         </Panel>
         <section className="panel navy-panel">
           <div className="icon-tile">
             <Wallet />
           </div>
-          <p className="navy-caption">PREVIOUS MONTH</p>
+          <p className="navy-caption">{t('PREVIOUS MONTH')}</p>
           <h2>{monthLabel(shiftMonth(p.month, -1))}</h2>
           <div className="navy-number">
             {previous.coverage ? money(previous.collected) : '—'}
-            <span>VND collected</span>
+            <span>{t('VND collected')}</span>
           </div>
           <p>
-            {previous.receipts.length} receipts recorded. See the payer list and
-            the payment status at that month’s end.
+            {previous.receipts.length}{' '}
+            {t(
+              'receipts recorded. See the payer list and the payment status at that month’s end.',
+            )}
           </p>
           <Button onClick={() => p.navigate('Finance')}>
-            Open monthly finance <ArrowRight size={16} />
+            {t('Open monthly finance')} <ArrowRight size={16} />
           </Button>
           <div className="navy-bottom">
-            <ShieldCheck size={14} />
-            Cash is counted once, including family receipts.
+            <ShieldCheck size={14} />{' '}
+            {t('Cash is counted once, including family receipts.')}
           </div>
         </section>
       </div>
       <Panel
-        title="Students to follow up"
-        subtitle="Renewals are based on remaining sessions and class schedules"
+        title={t('Students to follow up')}
+        subtitle={t(
+          'Renewals are based on remaining sessions and class schedules',
+        )}
         action={
           <Button variant="ghost" onClick={() => p.navigate('Renewals')}>
-            View all <ArrowRight size={15} />
+            {t('View all')} <ArrowRight size={15} />
           </Button>
         }
       >
@@ -272,8 +280,8 @@ export function Overview(p: ViewProps) {
       </Panel>
       <section className="panel class-strip">
         <div>
-          <h2>Your classes</h2>
-          <p>Attendance, original history and makeups.</p>
+          <h2>{t('Your classes')}</h2>
+          <p>{t('Attendance, original history and makeups.')}</p>
         </div>
         <div className="class-pills">
           {classes.map((c) => (
@@ -296,6 +304,7 @@ export function Overview(p: ViewProps) {
   );
 }
 export function Attendance(p: ViewProps) {
+  const { t, message, intlLocale, monthLabel } = useLanguage();
   const { records, actor } = p.snapshot;
   const classes = entries(records, 'class'),
     students = entries(records, 'student');
@@ -309,8 +318,8 @@ export function Attendance(p: ViewProps) {
   if (!cl)
     return (
       <Empty
-        title="No classes assigned"
-        detail="Ask the Director to assign your classes in Team & access."
+        title={t('No classes assigned')}
+        detail={t('Ask the Director to assign your classes in Team & access.')}
       />
     );
   const members = entries(records, 'membership')
@@ -357,7 +366,7 @@ export function Attendance(p: ViewProps) {
     <>
       <div className="class-bar">
         <Choice
-          label="Choose class"
+          label={t('Choose class')}
           value={cl.id}
           onChange={p.setClassFilter}
           options={classes.map((c) => ({
@@ -367,14 +376,15 @@ export function Attendance(p: ViewProps) {
         />
         <div className="class-summary">
           <ClassTag cl={cl} />
-          <span>{members.length} roster rows</span>
+          <span>
+            {members.length} {t('roster rows')}
+          </span>
           <span>
             {cl.weekdays
-              ?.map(
-                (d: number) =>
-                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d],
+              ?.map((d: number) =>
+                t(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d]),
               )
-              .join(' + ') || 'Archived timetable'}
+              .join(' + ') || t('Archived timetable')}
           </span>
         </div>
         {actor.role === 'Director' && (
@@ -382,37 +392,37 @@ export function Attendance(p: ViewProps) {
             variant="outline"
             onClick={() => p.open('calendar', undefined, { classId: cl.id })}
           >
-            <CalendarDays size={16} /> Holiday / lesson change
+            <CalendarDays size={16} /> {t('Holiday / lesson change')}
           </Button>
         )}
       </div>
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
         <TabsList variant="line">
-          <TabsTrigger value="grid">Class attendance</TabsTrigger>
-          <TabsTrigger value="makeup">Makeup lessons</TabsTrigger>
-          <TabsTrigger value="support">Free support</TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          <TabsTrigger value="grid">{t('Class attendance')}</TabsTrigger>
+          <TabsTrigger value="makeup">{t('Makeup lessons')}</TabsTrigger>
+          <TabsTrigger value="support">{t('Free support')}</TabsTrigger>
+          <TabsTrigger value="calendar">{t('Calendar')}</TabsTrigger>
         </TabsList>
         <TabsContent value="grid">
           <div className="attendance-guide">
             <span>
-              <b className="green-text">P</b> Present
+              <b className="green-text">P</b> {t('Present')}
             </span>
             <span>
-              <b className="green-text">T</b> Late
+              <b className="green-text">T</b> {t('Late')}
             </span>
             <span>
-              <b className="red-text">A</b> Absent
+              <b className="red-text">A</b> {t('Absent')}
             </span>
             <span>
-              <b>N</b> Not scheduled
+              <b>N</b> {t('Not scheduled')}
             </span>
-            <span>— Not entered</span>
-            <small>Original C / L / K codes are preserved.</small>
+            <span>{t('— Not entered')}</span>
+            <small>{t('Original C / L / K codes are preserved.')}</small>
           </div>
           {error && (
             <div className="error-message" role="alert">
-              {error}
+              {message(error)}
             </div>
           )}
           <section className="panel attendance-panel">
@@ -420,12 +430,14 @@ export function Attendance(p: ViewProps) {
               <div>
                 <h2>{cl.name}</h2>
                 <p>
-                  {monthLabel(p.month)} · click a new lesson cell to mark
-                  attendance
+                  {monthLabel(p.month)}
+                  {t('· click a new lesson cell to mark attendance')}
                 </p>
               </div>
               <span className="save-status" aria-live="polite">
-                {saving ? 'Saving attendance…' : 'Changes save automatically'}
+                {saving
+                  ? t('Saving attendance…')
+                  : t('Changes save automatically')}
               </span>
             </div>
             {dates.length ? (
@@ -433,7 +445,7 @@ export function Attendance(p: ViewProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="sticky-name">
-                      Student / Học viên
+                      {t('Student / Học viên')}
                     </TableHead>
                     {dates.map((d) => (
                       <TableHead
@@ -441,15 +453,21 @@ export function Attendance(p: ViewProps) {
                         className={d === today() ? 'today-col' : ''}
                       >
                         <span>
-                          {new Date(d + 'T12:00Z').toLocaleDateString('en-GB', {
-                            weekday: 'short',
-                          })}
+                          {new Date(d + 'T12:00Z').toLocaleDateString(
+                            intlLocale,
+                            {
+                              weekday: 'short',
+                            },
+                          )}
                         </span>
                         <strong>
                           {d.slice(8)}{' '}
-                          {new Date(d + 'T12:00Z').toLocaleDateString('en-GB', {
-                            month: 'short',
-                          })}
+                          {new Date(d + 'T12:00Z').toLocaleDateString(
+                            intlLocale,
+                            {
+                              month: 'short',
+                            },
+                          )}
                         </strong>
                       </TableHead>
                     ))}
@@ -487,15 +505,15 @@ export function Attendance(p: ViewProps) {
                               </button>
                               <small>
                                 {m.forecast === false
-                                  ? 'Original roster'
-                                  : (st?.status ?? '')}
-                                {m.until ? ' · Until ' + m.until : ''}
+                                  ? t('Original roster')
+                                  : t(st?.status ?? '')}
+                                {m.until ? t(' · Until ') + m.until : ''}
                               </small>
                             </div>
                             {actor.role === 'Director' && (
                               <button
                                 className="quiet-button"
-                                title="Edit class membership"
+                                title={t('Edit class membership')}
                                 onClick={() =>
                                   p.open(
                                     'membership',
@@ -548,7 +566,7 @@ export function Attendance(p: ViewProps) {
                                         ? 'absent'
                                         : 'blank')
                                   }
-                                  title={a?.source ?? 'Not entered'}
+                                  title={a?.source ?? t('Not entered')}
                                 >
                                   {a?.mark ?? '—'}
                                 </span>
@@ -563,14 +581,14 @@ export function Attendance(p: ViewProps) {
               </Table>
             ) : (
               <Empty
-                title="No lessons in this month"
-                detail="Choose another month or add a class calendar date."
+                title={t('No lessons in this month')}
+                detail={t('Choose another month or add a class calendar date.')}
               />
             )}
             <div className="panel-foot">
-              Present and late use one session. Absence uses none. A linked
-              completed makeup is counted once. Historical balances remain as
-              supplied.
+              {t(
+                'Present and late use one session. Absence uses none. A linked completed makeup is counted once. Historical balances remain as supplied.',
+              )}
             </div>
           </section>
           {actor.role === 'Director' && (
@@ -581,7 +599,7 @@ export function Attendance(p: ViewProps) {
                 p.open('membership', undefined, { classId: cl.id })
               }
             >
-              <Plus size={16} /> Add existing student to this class
+              <Plus size={16} /> {t('Add existing student to this class')}
             </Button>
           )}
         </TabsContent>
@@ -593,8 +611,8 @@ export function Attendance(p: ViewProps) {
         </TabsContent>
         <TabsContent value="calendar">
           <Panel
-            title="Timetable exceptions"
-            subtitle="Holiday closures and extra regular class dates"
+            title={t('Timetable exceptions')}
+            subtitle={t('Holiday closures and extra regular class dates')}
           >
             <DataTable
               headings={['Date', 'Class', 'Lesson status', 'Reason', '']}
@@ -603,7 +621,9 @@ export function Attendance(p: ViewProps) {
                 .map((c) => [
                   c.date,
                   <ClassTag cl={cl} />,
-                  <Badge>{c.open ? 'Open' : 'Closed'}</Badge>,
+                  <Badge tone={c.open ? 'green' : 'grey'}>
+                    {t(c.open ? 'Class open' : 'Class closed')}
+                  </Badge>,
                   c.reason,
                   actor.role === 'Director' ? (
                     <Button
@@ -615,7 +635,7 @@ export function Attendance(p: ViewProps) {
                         )
                       }
                     >
-                      Edit
+                      {t('Edit')}
                     </Button>
                   ) : null,
                 ])}
@@ -629,6 +649,7 @@ export function Attendance(p: ViewProps) {
 function LessonLog(
   p: ViewProps & { kind: 'makeup' | 'support'; classId: string },
 ) {
+  const { t } = useLanguage();
   const [all, setAll] = useState(true);
   const list = entries(p.snapshot.records, p.kind)
     .filter(
@@ -651,21 +672,23 @@ function LessonLog(
     <Panel
       title={
         p.kind === 'makeup'
-          ? 'Makeup lessons / Học bù'
-          : 'Free support / Học bổ trợ'
+          ? t('Makeup lessons / Học bù')
+          : t('Free support / Học bổ trợ')
       }
-      subtitle="Original records are included, with the names and details exactly as recorded."
+      subtitle={t(
+        'Original records are included, with the names and details exactly as recorded.',
+      )}
       action={
         <div className="button-row">
           <Button variant="outline" onClick={() => setAll(!all)}>
-            {all ? 'All accessible classes' : 'This class only'}
+            {all ? t('All accessible classes') : t('This class only')}
           </Button>
           {p.snapshot.actor.role !== 'Finance' && (
             <Button
               className="primary"
               onClick={() => p.open(p.kind, undefined, { classId: p.classId })}
             >
-              <Plus size={15} /> Add lesson
+              <Plus size={15} /> {t('Add lesson')}
             </Button>
           )}
         </div>
@@ -689,10 +712,10 @@ function LessonLog(
           >
             {students.find((s) => s.id === m.studentId)?.name ??
               m.name ??
-              'Not entered in source'}
+              t('Not entered in source')}
           </button>,
           <LessonClass lesson={m} classes={classes} />,
-          m.date ?? 'Not recorded',
+          m.date ?? t('Not recorded'),
           m.teacher || '—',
           <div className="long-cell">
             {m.notes || m.original?.filter(Boolean).join(' · ') || '—'}
@@ -715,7 +738,7 @@ function LessonLog(
                 )
               }
             >
-              Edit
+              {t('Edit')}
             </Button>
           ) : !m.studentId && p.snapshot.actor.role === 'Director' ? (
             <Button
@@ -727,7 +750,7 @@ function LessonLog(
                 )
               }
             >
-              Match student
+              {t('Match student')}
             </Button>
           ) : null,
         ])}
@@ -736,6 +759,7 @@ function LessonLog(
   );
 }
 export function Students(p: ViewProps) {
+  const { t, money, packageTitle } = useLanguage();
   const classes = entries(p.snapshot.records, 'class');
   const [scope, setScope] = useState('current');
   const [size, setSize] = useState('');
@@ -745,10 +769,10 @@ export function Students(p: ViewProps) {
     [p.snapshot.records, p.reviewDate],
   );
   const scopes = [
-    { value: 'current', label: 'Current students' },
-    { value: 'review', label: 'Needs review' },
-    { value: 'inactive', label: 'Paused / stopped' },
-    { value: 'history', label: 'All history' },
+    { value: 'current', label: t('Current students') },
+    { value: 'review', label: t('Needs review') },
+    { value: 'inactive', label: t('Paused / stopped') },
+    { value: 'history', label: t('All history') },
   ];
   const inScope = (s: any, value: string) =>
     value === 'history' ||
@@ -790,12 +814,18 @@ export function Students(p: ViewProps) {
     );
   return (
     <Panel
-      title="Student directory"
-      subtitle={`${list.length} shown · balances as of ${p.reviewDate}${p.snapshot.manifest?.sourceRefresh ? ' · Sheet checked ' + p.snapshot.manifest.sourceRefresh.checkedAt : ''}`}
+      title={t('Student directory')}
+      subtitle={t('{p1} shown · balances as of {p2}{p3}', {
+        p1: list.length,
+        p2: p.reviewDate,
+        p3: p.snapshot.manifest?.sourceRefresh
+          ? t(' · Sheet checked ') + p.snapshot.manifest.sourceRefresh.checkedAt
+          : '',
+      })}
     >
       <div
         role="group"
-        aria-label="Student list view"
+        aria-label={t('Student list view')}
         className="student-scope-tabs"
       >
         {scopes.map((s) => (
@@ -805,7 +835,7 @@ export function Students(p: ViewProps) {
             key={s.value}
             onClick={() => setScope(s.value)}
           >
-            {s.label}
+            {t(s.label)}
             <span className="filter-count">
               {review.filter((r) => inScope(r, s.value)).length}
             </span>
@@ -814,11 +844,11 @@ export function Students(p: ViewProps) {
       </div>
       <div className="student-table-tools">
         <Choice
-          label="Package size"
+          label={t('Package size')}
           value={size}
           onChange={setSize}
           options={[
-            { value: '', label: 'All package sizes' },
+            { value: '', label: t('All package sizes') },
             ...Array.from(
               new Set(
                 review
@@ -829,16 +859,19 @@ export function Students(p: ViewProps) {
               ),
             )
               .sort((a: any, b: any) => a - b)
-              .map((n) => ({ value: String(n), label: `${n} sessions` })),
+              .map((n) => ({
+                value: String(n),
+                label: t('{p1} sessions', { p1: n }),
+              })),
           ]}
         />
         <Choice
-          label="Sort students"
+          label={t('Sort students')}
           value={sort}
           onChange={setSort}
           options={[
-            { value: 'name', label: 'Name A–Z' },
-            { value: 'sessions', label: 'Fewest sessions first' },
+            { value: 'name', label: t('Name A–Z') },
+            { value: 'sessions', label: t('Fewest sessions first') },
           ]}
         />
         {(size || p.classFilter) && (
@@ -849,7 +882,7 @@ export function Students(p: ViewProps) {
               p.setClassFilter('');
             }}
           >
-            Clear package / class filters
+            {t('Clear package / class filters')}
           </Button>
         )}
       </div>
@@ -880,15 +913,15 @@ export function Students(p: ViewProps) {
             {!s.canonicalStudentId && <Badge>{s.paymentStatus}</Badge>}
           </div>,
           s.canonicalStudentId ? (
-            'See current profile'
+            t('See current profile')
           ) : (
             <div className="student-session-cell">
               <strong>
-                {s.sessions === null ? 'Needs confirmation' : s.sessions}
+                {s.sessions === null ? t('Needs confirmation') : s.sessions}
               </strong>
               {s.overrun > 0 && (
                 <small className="red-text">
-                  {s.overrun} lessons beyond package
+                  {s.overrun} {t('lessons beyond package')}
                 </small>
               )}
             </div>
@@ -898,7 +931,7 @@ export function Students(p: ViewProps) {
               className="name-link"
               onClick={() => p.detail(s.canonicalStudentId)}
             >
-              Open linked package →
+              {t('Open linked package →')}
             </button>
           ) : (
             <div className="student-package-list">
@@ -919,21 +952,23 @@ export function Students(p: ViewProps) {
                         {packageTitle(pkg)}
                       </span>
                       <small>
-                        {pkg.startDate > p.reviewDate ? 'Upcoming · ' : ''}
-                        {pkg.startDate || 'Start not recorded'}
-                        {pkg.remaining === 0 ? ' · Completed' : ''}
+                        {pkg.startDate > p.reviewDate ? t('Upcoming · ') : ''}
+                        {pkg.startDate || t('Start not recorded')}
+                        {pkg.remaining === 0 ? t(' · Completed') : ''}
                       </small>
                     </div>
                   ))
               ) : (
                 <span className="muted">
                   {s.enrollmentStatus === 'Roster only'
-                    ? 'No paid package linked to this historical row'
-                    : 'No agreed package recorded'}
+                    ? t('No paid package linked to this historical row')
+                    : t('No agreed package recorded')}
                 </span>
               )}
               {s.due > 0 && (
-                <small className="red-text">{money(s.due)} VND balance</small>
+                <small className="red-text">
+                  {money(s.due)} {t('VND balance')}
+                </small>
               )}
             </div>
           ),
@@ -951,7 +986,7 @@ export function Students(p: ViewProps) {
                 )
               }
             >
-              Edit
+              {t('Edit')}
             </Button>
           ) : null,
         ])}
@@ -960,6 +995,7 @@ export function Students(p: ViewProps) {
   );
 }
 export function Renewals(p: ViewProps) {
+  const { t, money, monthLabel } = useLanguage();
   const [window, setWindow] = useState('next');
   const review = useMemo(
     () => studentReview(p.snapshot.records, p.reviewDate),
@@ -981,20 +1017,22 @@ export function Renewals(p: ViewProps) {
     <>
       <div className="section-toolbar">
         <Choice
-          label="Follow-up list"
+          label={t('Follow-up list')}
           value={window}
           onChange={setWindow}
           options={[
             {
               value: 'next',
-              label: 'Renewals · ' + monthLabel(shiftMonth(p.month, 1)),
+              label: t('Renewals · ') + monthLabel(shiftMonth(p.month, 1)),
             },
-            { value: 'this', label: 'Renewals · ' + monthLabel(p.month) },
-            { value: 'unpaid', label: 'Confirmed overdue payments' },
-            { value: 'all', label: 'All expected renewals' },
+            { value: 'this', label: t('Renewals · ') + monthLabel(p.month) },
+            { value: 'unpaid', label: t('Confirmed overdue payments') },
+            { value: 'all', label: t('All expected renewals') },
           ]}
         />
-        <Badge tone="blue">{list.length} students</Badge>
+        <Badge tone="blue">
+          {t('{count} students', { count: list.length })}
+        </Badge>
         <Button
           variant="outline"
           onClick={() =>
@@ -1006,26 +1044,30 @@ export function Renewals(p: ViewProps) {
                 'Expected date',
                 'Status',
                 'Confirmed amount due',
-              ],
+              ].map((h) => t(h)),
               ...list.map((s) => [
                 s.name,
                 classes.find((c) => c.id === s.classId)?.name,
                 s.sessions,
                 s.expectedDate,
-                s.status,
+                t(s.status),
                 s.due,
               ]),
             ])
           }
         >
-          <Download size={15} /> Export list
+          <Download size={15} /> {t('Export list')}
         </Button>
       </div>
       <Panel
         title={
-          window === 'unpaid' ? 'Payments to follow up' : 'Who needs to renew?'
+          window === 'unpaid'
+            ? t('Payments to follow up')
+            : t('Who needs to renew?')
         }
-        subtitle="No new package price is assumed. Dates are estimates based on the timetable and recorded attendance."
+        subtitle={t(
+          'No new package price is assumed. Dates are estimates based on the timetable and recorded attendance.',
+        )}
       >
         <DataTable
           headings={[
@@ -1045,7 +1087,7 @@ export function Renewals(p: ViewProps) {
             s.expectedDate ?? '—',
             <Badge tone={s.overdue > 0 ? 'red' : 'blue'}>
               {s.overdue > 0
-                ? money(s.overdue) + ' VND overdue'
+                ? money(s.overdue) + t(' VND overdue')
                 : s.advanceCovered
                   ? 'Advance package included'
                   : 'Renewal expected'}
@@ -1059,7 +1101,7 @@ export function Renewals(p: ViewProps) {
                 })
               }
             >
-              Add renewal
+              {t('Add renewal')}
             </Button>,
           ])}
         />
@@ -1068,6 +1110,7 @@ export function Renewals(p: ViewProps) {
   );
 }
 export function Packages(p: ViewProps) {
+  const { t, money, packageTitle } = useLanguage();
   const review = useMemo(
     () => studentReview(p.snapshot.records, p.reviewDate),
     [p.snapshot.records, p.reviewDate],
@@ -1087,16 +1130,20 @@ export function Packages(p: ViewProps) {
           <div key={x.sessions}>
             <strong>
               {x.sessions}
-              <span> sessions</span>
+              <span>{t('sessions')}</span>
             </strong>
             <span>{money(x.price)} VND</span>
-            <small>With 5%: {money(Math.round(x.price * 0.95))}</small>
+            <small>
+              {t('With 5%:')} {money(Math.round(x.price * 0.95))}
+            </small>
           </div>
         ))}
       </div>
       <Panel
-        title="Student packages"
-        subtitle="Every renewal is a separate record. Existing source balances are retained."
+        title={t('Student packages')}
+        subtitle={t(
+          'Every renewal is a separate record. Existing source balances are retained.',
+        )}
       >
         <DataTable
           headings={[
@@ -1143,7 +1190,7 @@ export function Packages(p: ViewProps) {
                     )
                   }
                 >
-                  Edit
+                  {t('Edit')}
                 </Button>
               ),
             ])}
@@ -1153,6 +1200,7 @@ export function Packages(p: ViewProps) {
   );
 }
 export function Finance(p: ViewProps) {
+  const { t, money } = useLanguage();
   const [tab, setTab] = useState('receipts');
   const { records } = p.snapshot;
   const summary = cashSummary(records, p.month, p.reviewDate),
@@ -1187,35 +1235,35 @@ export function Finance(p: ViewProps) {
     <>
       <div className="metric-grid finance-metrics">
         <Metric
-          label="Collected / Đã thu"
+          label={t('Collected / Đã thu')}
           value={summary.coverage ? money(summary.collected) : '—'}
           unit="VND"
-          detail={summary.receipts.length + ' receipts'}
+          detail={summary.receipts.length + t(' receipts')}
           icon={Wallet}
           tone="blue"
         />
         <Metric
-          label="Expenses / Đã chi"
+          label={t('Expenses / Đã chi')}
           value={money(summary.paid)}
           unit="VND"
           detail={
             summary.pendingExpenses
-              ? summary.pendingExpenses + ' text amounts pending'
-              : 'Actual payments recorded'
+              ? summary.pendingExpenses + t(' text amounts pending')
+              : t('Actual payments recorded')
           }
           icon={ArrowUpRight}
         />
         <Metric
-          label="Net cash / Thu trừ chi"
+          label={t('Net cash / Thu trừ chi')}
           value={summary.coverage ? money(summary.net) : '—'}
           unit="VND"
-          detail="Not accounting profit"
+          detail={t('Not accounting profit')}
           icon={BookOpen}
         />
         <Metric
-          label="Students who paid"
+          label={t('Students who paid')}
           value={String(summary.payerIds.length)}
-          detail="Identified students · family totals counted once"
+          detail={t('Identified students · family totals counted once')}
           icon={Users}
         />
       </div>
@@ -1223,7 +1271,9 @@ export function Finance(p: ViewProps) {
         <Badge tone={close?.status === 'Closed' ? 'grey' : 'green'}>
           {close?.status === 'Closed' ? 'Month closed' : 'Month open'}
         </Badge>
-        <span className="muted">Through {cutoff}</span>
+        <span className="muted">
+          {t('Through')} {cutoff}
+        </span>
         <Button
           variant="outline"
           onClick={() =>
@@ -1238,7 +1288,7 @@ export function Finance(p: ViewProps) {
           }
         >
           <LockKeyhole size={15} />
-          {close?.status === 'Closed' ? 'Reopen month' : 'Close month'}
+          {close?.status === 'Closed' ? t('Reopen month') : t('Close month')}
         </Button>
         <Button
           variant="outline"
@@ -1249,7 +1299,7 @@ export function Finance(p: ViewProps) {
             })
           }
         >
-          <Plus size={15} /> Record expense
+          <Plus size={15} /> {t('Record expense')}
         </Button>
         <Button
           variant="outline"
@@ -1262,9 +1312,9 @@ export function Finance(p: ViewProps) {
                 'Amount',
                 'Account',
                 'Reference',
-              ],
+              ].map((h) => t(h)),
               ...summary.receipts.map((r) => [
-                'Receipt',
+                t('Receipt'),
                 r.date,
                 r.name,
                 r.amount,
@@ -1272,7 +1322,7 @@ export function Finance(p: ViewProps) {
                 r.reference,
               ]),
               ...summary.expenses.map((r) => [
-                'Expense',
+                t('Expense'),
                 r.date,
                 r.description,
                 r.amount,
@@ -1282,23 +1332,27 @@ export function Finance(p: ViewProps) {
             ])
           }
         >
-          <Download size={15} /> Export month
+          <Download size={15} /> {t('Export month')}
         </Button>
       </div>
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
         <TabsList variant="line">
-          <TabsTrigger value="receipts">Money collected</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses paid</TabsTrigger>
-          <TabsTrigger value="review">Student payment review</TabsTrigger>
-          <TabsTrigger value="recurring">Recurring expenses</TabsTrigger>
-          <TabsTrigger value="payroll">Payroll</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="reconcile">Reconciliation</TabsTrigger>
+          <TabsTrigger value="receipts">{t('Money collected')}</TabsTrigger>
+          <TabsTrigger value="expenses">{t('Expenses paid')}</TabsTrigger>
+          <TabsTrigger value="review">
+            {t('Student payment review')}
+          </TabsTrigger>
+          <TabsTrigger value="recurring">{t('Recurring expenses')}</TabsTrigger>
+          <TabsTrigger value="payroll">{t('Payroll')}</TabsTrigger>
+          <TabsTrigger value="tasks">{t('Tasks')}</TabsTrigger>
+          <TabsTrigger value="reconcile">{t('Reconciliation')}</TabsTrigger>
         </TabsList>
         <TabsContent value="receipts">
           <Panel
-            title="Money collected"
-            subtitle="A payment appears in the month it was received, including deposits and partial payments."
+            title={t('Money collected')}
+            subtitle={t(
+              'A payment appears in the month it was received, including deposits and partial payments.',
+            )}
           >
             <DataTable
               headings={[
@@ -1311,7 +1365,7 @@ export function Finance(p: ViewProps) {
                 '',
               ]}
               rows={rec.map((r) => [
-                r.date ?? 'Not recorded',
+                r.date ?? t('Not recorded'),
                 <div className="long-cell">
                   {r.studentId ? (
                     <button
@@ -1324,10 +1378,12 @@ export function Finance(p: ViewProps) {
                     <strong>{linkedStudentNames(records, r) || r.name}</strong>
                   )}
                   {linkedStudentNames(records, r) && (
-                    <small>Receipt payer: {r.name}</small>
+                    <small>
+                      {t('Receipt payer:')} {r.name}
+                    </small>
                   )}
                 </div>,
-                r.purpose,
+                t(r.purpose || ''),
                 <strong className="amount">{money(r.amount)}</strong>,
                 r.account,
                 <Badge
@@ -1352,7 +1408,7 @@ export function Finance(p: ViewProps) {
                     )
                   }
                 >
-                  Details / match
+                  {t('Details / match')}
                 </Button>,
               ])}
             />
@@ -1360,8 +1416,10 @@ export function Finance(p: ViewProps) {
         </TabsContent>
         <TabsContent value="expenses">
           <Panel
-            title="Expenses paid"
-            subtitle="Text-formatted source amounts stay visible separately until entered as verified numbers."
+            title={t('Expenses paid')}
+            subtitle={t(
+              'Text-formatted source amounts stay visible separately until entered as verified numbers.',
+            )}
           >
             <DataTable
               headings={[
@@ -1374,7 +1432,7 @@ export function Finance(p: ViewProps) {
                 '',
               ]}
               rows={exp.map((r) => [
-                r.date ?? 'Not recorded',
+                r.date ?? t('Not recorded'),
                 <Badge>{r.category}</Badge>,
                 <div className="long-cell">{r.description}</div>,
                 typeof r.amount === 'number' ? (
@@ -1382,7 +1440,7 @@ export function Finance(p: ViewProps) {
                 ) : (
                   <span className="amber-text">
                     {String(r.originalAmount)}
-                    <small>Source text · excluded from total</small>
+                    <small>{t('Source text · excluded from total')}</small>
                   </span>
                 ),
                 r.account,
@@ -1398,7 +1456,7 @@ export function Finance(p: ViewProps) {
                     )
                   }
                 >
-                  Edit
+                  {t('Edit')}
                 </Button>,
               ])}
             />
@@ -1406,11 +1464,11 @@ export function Finance(p: ViewProps) {
         </TabsContent>
         <TabsContent value="review">
           <Panel
-            title="Student payment review"
+            title={t('Student payment review')}
             subtitle={
-              'Balances as at ' +
+              t('Balances as at ') +
               cutoff +
-              '. A later payment does not rewrite the earlier month.'
+              t('. A later payment does not rewrite the earlier month.')
             }
           >
             <DataTable
@@ -1437,7 +1495,7 @@ export function Finance(p: ViewProps) {
                   </button>,
                   <ClassTag cl={classes.find((c) => c.id === s.classId)} />,
                   money(paidFor(s.id, summary.receipts)),
-                  cutoff < CUTOFF ? 'Not available' : money(s.due),
+                  cutoff < CUTOFF ? t('Not available') : money(s.due),
                   <Badge>
                     {cutoff < CUTOFF
                       ? 'Historical balance unavailable'
@@ -1457,11 +1515,13 @@ export function Finance(p: ViewProps) {
         </TabsContent>
         <TabsContent value="recurring">
           <Panel
-            title="Recurring commitments"
-            subtitle="Expected bills are kept separate from expenses actually paid."
+            title={t('Recurring commitments')}
+            subtitle={t(
+              'Expected bills are kept separate from expenses actually paid.',
+            )}
             action={
               <Button variant="outline" onClick={() => p.open('commitment')}>
-                <Plus size={15} /> Add commitment
+                <Plus size={15} /> {t('Add commitment')}
               </Button>
             }
           >
@@ -1477,11 +1537,11 @@ export function Finance(p: ViewProps) {
               rows={entries(records, 'commitment')
                 .filter(filter)
                 .map((r) => [
-                  r.category,
+                  t(r.category || ''),
                   <div className="long-cell">{r.description}</div>,
                   money(r.amount),
-                  r.frequency,
-                  r.dueDate || 'Not recorded',
+                  t(r.frequency || ''),
+                  r.dueDate || t('Not recorded'),
                   <Button
                     variant="ghost"
                     onClick={() =>
@@ -1491,7 +1551,7 @@ export function Finance(p: ViewProps) {
                       )
                     }
                   >
-                    Edit
+                    {t('Edit')}
                   </Button>,
                 ])}
             />
@@ -1511,6 +1571,7 @@ export function Finance(p: ViewProps) {
   );
 }
 function Reconciliation(p: ViewProps) {
+  const { t, money } = useLanguage();
   const { records } = p.snapshot;
   const s = cashSummary(records, p.month, monthEnd(p.month));
   const accounts = [
@@ -1521,8 +1582,10 @@ function Reconciliation(p: ViewProps) {
   );
   return (
     <Panel
-      title="Bank & cash reconciliation"
-      subtitle="Enter statement balances for each account. Original workbooks did not include bank statements."
+      title={t('Bank & cash reconciliation')}
+      subtitle={t(
+        'Enter statement balances for each account. Original workbooks did not include bank statements.',
+      )}
       action={
         <Button
           variant="outline"
@@ -1530,7 +1593,7 @@ function Reconciliation(p: ViewProps) {
             p.open('reconciliation', undefined, { month: p.month })
           }
         >
-          <Plus size={15} /> Add statement balances
+          <Plus size={15} /> {t('Add statement balances')}
         </Button>
       }
     >
@@ -1579,7 +1642,7 @@ function Reconciliation(p: ViewProps) {
                   )
                 }
               >
-                Enter / edit
+                {t('Enter / edit')}
               </Button>,
             ];
           },
@@ -1589,6 +1652,7 @@ function Reconciliation(p: ViewProps) {
   );
 }
 export function Leads(p: ViewProps) {
+  const { t } = useLanguage();
   const classes = entries(p.snapshot.records, 'class');
   const list = entries(p.snapshot.records, 'lead').filter((r) =>
     cleanSearch([r.name, r.parent, r.phone].join(' ')).includes(
@@ -1597,8 +1661,8 @@ export function Leads(p: ViewProps) {
   );
   return (
     <Panel
-      title="Leads & trials"
-      subtitle="Track the next conversation, trial lesson and enrolment."
+      title={t('Leads & trials')}
+      subtitle={t('Track the next conversation, trial lesson and enrolment.')}
     >
       <DataTable
         headings={[
@@ -1630,7 +1694,7 @@ export function Leads(p: ViewProps) {
                 )
               }
             >
-              Edit
+              {t('Edit')}
             </Button>
             {r.status !== 'Enrolled' && (
               <Button
@@ -1646,7 +1710,7 @@ export function Leads(p: ViewProps) {
                   })
                 }
               >
-                Add as student
+                {t('Add as student')}
               </Button>
             )}
           </div>,
@@ -1656,23 +1720,26 @@ export function Leads(p: ViewProps) {
   );
 }
 export function Team(p: ViewProps) {
+  const { t, intlLocale } = useLanguage();
   const classes = entries(p.snapshot.records, 'class');
   return (
     <>
       <div className="notice">
         <ShieldCheck size={19} />
         <div>
-          <strong>Individual accounts. One connected team.</strong>
+          <strong>{t('Individual accounts. One connected team.')}</strong>
           <p>
-            Staff sign in with their own email and password. Each person also
-            needs a role below. A TA sees only assigned classes; Finance manages
-            money; the Director manages the centre. No shared passwords.
+            {t(
+              'Staff sign in with their own email and password. Each person also needs a role below. A TA sees only assigned classes; Finance manages money; the Director manages the centre. No shared passwords.',
+            )}
           </p>
         </div>
       </div>
       <Panel
-        title="Team & access"
-        subtitle="TA access is limited to the classes assigned here. Finance data is never sent to TA accounts."
+        title={t('Team & access')}
+        subtitle={t(
+          'TA access is limited to the classes assigned here. Finance data is never sent to TA accounts.',
+        )}
       >
         <DataTable
           headings={[
@@ -1695,15 +1762,15 @@ export function Team(p: ViewProps) {
                     : 'grey'
               }
             >
-              {m.role}
+              {t(m.role === 'Finance' ? 'Finance manager' : m.role)}
             </Badge>,
             m.role === 'TA'
               ? (Array.isArray(m.class_ids) ? m.class_ids : [])
                   .map((id: string) =>
                     classes.find((c) => c.id === id)?.name.replace('BOH ', ''),
                   )
-                  .join(', ') || 'None assigned'
-              : 'All classes',
+                  .join(', ') || t('None assigned')
+              : t('All classes'),
             <Badge>
               {!m.active
                 ? 'Disabled'
@@ -1712,7 +1779,7 @@ export function Team(p: ViewProps) {
                   : m.must_change_password
                     ? 'Temporary password'
                     : m.last_sign_in_at
-                      ? 'Active'
+                      ? 'Account active'
                       : 'Awaiting first sign-in'}
             </Badge>,
             m.id !== 'owner' ? (
@@ -1726,10 +1793,10 @@ export function Team(p: ViewProps) {
                   })
                 }
               >
-                Edit access
+                {t('Edit access')}
               </Button>
             ) : (
-              <span className="muted">Owner</span>
+              <span className="muted">{t('Owner')}</span>
             ),
           ])}
         />
@@ -1737,37 +1804,42 @@ export function Team(p: ViewProps) {
       <div className="team-guide">
         <div>
           <span>01</span>
-          <strong>Prepare access</strong>
+          <strong>{t('Prepare access')}</strong>
           <p>
-            Add the exact sign-in email and role. Assign each TA’s classes using
-            Edit access.
+            {t(
+              'Add the exact sign-in email and role. Assign each TA’s classes using Edit access.',
+            )}
           </p>
         </div>
         <div>
           <span>02</span>
-          <strong>Give individual credentials</strong>
+          <strong>{t('Give individual credentials')}</strong>
           <p>
-            Arrange a temporary password for each approved account. Adding a
-            role row alone does not create a password.
+            {t(
+              'Arrange a temporary password for each approved account. Adding a role row alone does not create a password.',
+            )}
           </p>
         </div>
         <div>
           <span>03</span>
-          <strong>First sign-in</strong>
+          <strong>{t('First sign-in')}</strong>
           <p>
-            Open the app link, sign in and set a personal password. The account
-            status updates after entry.
+            {t(
+              'Open the app link, sign in and set a personal password. The account status updates after entry.',
+            )}
           </p>
         </div>
       </div>
       <Panel
-        title="Recent activity"
-        subtitle="Saved changes are attributed to the signed-in staff member."
+        title={t('Recent activity')}
+        subtitle={t(
+          'Saved changes are attributed to the signed-in staff member.',
+        )}
       >
         <DataTable
           headings={['When', 'Staff member', 'Change']}
           rows={p.snapshot.activity.map((a: any) => [
-            new Date(a.at).toLocaleString('en-GB', {
+            new Date(a.at).toLocaleString(intlLocale, {
               timeZone: 'Asia/Ho_Chi_Minh',
             }),
             a.actor_name,
@@ -1779,6 +1851,7 @@ export function Team(p: ViewProps) {
   );
 }
 export function SourceRecords(p: ViewProps) {
+  const { t, message } = useLanguage();
   const [query, setQuery] = useState('Check học phí ver2'),
     [rows, setRows] = useState<DataRecord[]>([]),
     [busy, setBusy] = useState(false),
@@ -1813,12 +1886,13 @@ export function SourceRecords(p: ViewProps) {
       <div className="notice">
         <BookOpen size={20} />
         <div>
-          <strong>Source records & data checks</strong>
+          <strong>{t('Source records & data checks')}</strong>
           <p>
-            Student balances use the original “Check học phí ver2” values. New
-            attendance starts after{' '}
-            {p.snapshot.manifest.sourceRefresh?.dataDate || CUTOFF}. Source rows
-            below are read-only.
+            {t(
+              'Student balances use the original “Check học phí ver2” values. New attendance starts after',
+            )}{' '}
+            {p.snapshot.manifest.sourceRefresh?.dataDate || CUTOFF}
+            {t('. Source rows below are read-only.')}
           </p>
         </div>
       </div>
@@ -1833,10 +1907,10 @@ export function SourceRecords(p: ViewProps) {
         <SearchBox
           value={query}
           onChange={setQuery}
-          placeholder="Search source sheet or student name"
+          placeholder={t('Search source sheet or student name')}
         />
         <Button className="primary" onClick={() => void load()} disabled={busy}>
-          {busy ? 'Loading…' : 'Search original records'}
+          {busy ? t('Loading…') : t('Search original records')}
         </Button>
         <Button
           variant="outline"
@@ -1848,7 +1922,7 @@ export function SourceRecords(p: ViewProps) {
             setSearched(false);
           }}
         >
-          {latestOnly ? 'Latest workbook only' : 'All source versions'}
+          {latestOnly ? t('Latest workbook only') : t('All source versions')}
         </Button>
         <Button
           variant="outline"
@@ -1866,18 +1940,22 @@ export function SourceRecords(p: ViewProps) {
             ])
           }
         >
-          <Download size={16} /> Export working records
+          <Download size={16} /> {t('Export working records')}
         </Button>
       </div>
-      {error && <div className="error-message">{error}</div>}
+      {error && <div className="error-message">{message(error)}</div>}
       <Panel
-        title="Original workbook rows"
+        title={t('Original workbook rows')}
         subtitle={
           !searched
-            ? 'Search a sheet or student above to show preserved rows.'
+            ? t('Search a sheet or student above to show preserved rows.')
             : rows.length >= 400
-              ? 'First 400 matches. Search a specific sheet or student to narrow the results.'
-              : 'Column letters refer to the original Excel sheet. Older versions are kept separately.'
+              ? t(
+                  'First 400 matches. Search a specific sheet or student to narrow the results.',
+                )
+              : t(
+                  'Column letters refer to the original Excel sheet. Older versions are kept separately.',
+                )
         }
       >
         <DataTable
@@ -1891,7 +1969,7 @@ export function SourceRecords(p: ViewProps) {
             )
             .map((r) => [
               r.payload.book,
-              r.payload.sheet + ' · row ' + r.payload.row,
+              r.payload.sheet + t(' · row ') + r.payload.row,
               <div className="source-cells">
                 {Object.entries(r.payload.cells).map(([k, v]) => (
                   <span key={k}>
@@ -1910,14 +1988,18 @@ export function SourceRecords(p: ViewProps) {
               r.payload.book === p.snapshot.manifest.workbookAudit.file,
           ) && (
             <p className="muted">
-              No rows found in this source version. Try a sheet name or switch
-              to all source versions.
+              {t(
+                'No rows found in this source version. Try a sheet name or switch to all source versions.',
+              )}
             </p>
           )}
       </Panel>
       <Panel
-        title="Unassigned source marks"
-        subtitle={`${entries(p.snapshot.records, 'unmatched').length} source marks have no confirmed student. No identity has been guessed.`}
+        title={t('Unassigned source marks')}
+        subtitle={t(
+          '{p1} source marks have no confirmed student. No identity has been guessed.',
+          { p1: entries(p.snapshot.records, 'unmatched').length },
+        )}
       >
         <DataTable
           headings={['Source cell', 'Date', 'Mark', 'Reason']}

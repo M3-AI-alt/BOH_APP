@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '@/app/language';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { sourceReviewIssues } from '@/lib/source-review';
@@ -9,6 +10,7 @@ import type { ViewProps } from './views';
 export function SourceReview(
   p: ViewProps & { showSheet: (sheet: string) => void },
 ) {
+  const { t } = useLanguage();
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
   const issues = useMemo(
@@ -25,7 +27,7 @@ export function SourceReview(
   const filtered = issues.filter(
     (r) =>
       (category === 'all' || r.category === category) &&
-      cleanSearch([r.name, r.source, r.reason].join(' ')).includes(
+      cleanSearch([r.name, r.source, r.reason, t(r.reason)].join(' ')).includes(
         cleanSearch(search),
       ),
   );
@@ -34,24 +36,27 @@ export function SourceReview(
     <>
       {audit && (
         <Panel
-          title="Latest workbook check"
-          subtitle={`${audit.file} · Checked ${audit.checkedAt} · Source lesson dates through ${audit.dataDate}`}
+          title={t('Latest workbook check')}
+          subtitle={t(
+            '{p1} · Checked {p2} · Source lesson dates through {p3}',
+            { p1: audit.file, p2: audit.checkedAt, p3: audit.dataDate },
+          )}
         >
           <div className="notice compact">
             <div>
               <strong>
-                {audit.sheets.length} sheets · {audit.preservedRows} populated
-                rows preserved
+                {audit.sheets.length} {t('sheets ·')} {audit.preservedRows}{' '}
+                {t('populated rows preserved')}
               </strong>
               <p>
-                The source copy includes original values, formulas and notes. It
-                is separate from working records; it does not add another
-                payment or use another lesson.
+                {t(
+                  'The source copy includes original values, formulas and notes. It is separate from working records; it does not add another payment or use another lesson.',
+                )}
               </p>
             </div>
           </div>
           <details className="source-audit-details">
-            <summary>See all sheets and remaining checks</summary>
+            <summary>{t('See all sheets and remaining checks')}</summary>
             <DataTable
               headings={['Sheet', 'Rows preserved', 'Working-record check', '']}
               rows={audit.sheets.map((s: any) => [
@@ -59,7 +64,7 @@ export function SourceReview(
                 s.rows,
                 s.result,
                 <Button variant="outline" onClick={() => p.showSheet(s.name)}>
-                  View source
+                  {t('View source')}
                 </Button>,
               ])}
             />
@@ -72,10 +77,12 @@ export function SourceReview(
         </Panel>
       )}
       <Panel
-        title="Data needing confirmation"
-        subtitle="These are matching checks—not unpaid bills. Receipts remain counted once, and historical lessons are not charged again."
+        title={t('Data needing confirmation')}
+        subtitle={t(
+          'These are matching checks—not unpaid bills. Receipts remain counted once, and historical lessons are not charged again.',
+        )}
       >
-        <div className="audit-filters" aria-label="Data review filters">
+        <div className="audit-filters" aria-label={t('Data review filters')}>
           {filters.map(([value, label]) => (
             <Button
               key={value}
@@ -84,7 +91,7 @@ export function SourceReview(
               className={`audit-filter audit-${value}`}
               onClick={() => setCategory(value)}
             >
-              {label}
+              {t(label)}
               <span>
                 {value === 'all'
                   ? issues.length
@@ -97,7 +104,7 @@ export function SourceReview(
           <SearchBox
             value={search}
             onChange={setSearch}
-            placeholder="Find a student or source record…"
+            placeholder={t('Find a student or source record…')}
           />
         </div>
         <DataTable
@@ -121,9 +128,15 @@ export function SourceReview(
                 ? 'Free support'
                 : r.kind === 'unmatched'
                   ? 'Attendance'
-                  : r.kind}
+                  : (
+                      {
+                        receipt: 'Receipt',
+                        package: 'Package',
+                        makeup: 'Makeup',
+                      } as Record<string, string>
+                    )[r.kind] || r.kind}
             </Badge>,
-            r.reason,
+            t(r.reason),
             r.source,
             ['receipt', 'package'].includes(r.kind) ? (
               <Button
@@ -135,7 +148,7 @@ export function SourceReview(
                   )
                 }
               >
-                Review details
+                {t('Review details')}
               </Button>
             ) : ['makeup', 'support'].includes(r.kind) &&
               p.snapshot.actor.role === 'Director' ? (
@@ -148,17 +161,18 @@ export function SourceReview(
                   )
                 }
               >
-                Match student
+                {t('Match student')}
               </Button>
             ) : (
-              'Check original row'
+              t('Check original row')
             ),
           ])}
         />
         {filtered.length === 0 && (
           <p className="muted">
-            No records match this filter. Other checks may still need
-            confirmation.
+            {t(
+              'No records match this filter. Other checks may still need confirmation.',
+            )}
           </p>
         )}
       </Panel>

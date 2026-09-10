@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '@/app/language';
 import { Fragment, useRef, useState } from 'react';
 import {
   Dialog,
@@ -11,13 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Choice, Picker } from './ui';
-import {
-  entries,
-  today,
-  money,
-  resolveStudentId,
-  packageTitle,
-} from '@/lib/domain';
+import { entries, today, resolveStudentId } from '@/lib/domain';
 import { priceList, type DataRecord } from '@/lib/types';
 import {
   AlertDialog,
@@ -451,6 +446,7 @@ export default function RecordForm({
   onSaved: (record?: DataRecord) => Promise<void>;
   onRefresh: () => Promise<boolean>;
 }) {
+  const { t, message, money, packageTitle } = useLanguage();
   const [data, setData] = useState<any>(() => ({
     date: today(),
     startDate: today(),
@@ -591,7 +587,9 @@ export default function RecordForm({
           id={'field-' + f.key}
           value={label || v}
           disabled
-          title="Historical identity stays fixed. Use a transfer or a new record."
+          title={t(
+            'Historical identity stays fixed. Use a transfer or a new record.',
+          )}
         />
       );
     }
@@ -603,7 +601,7 @@ export default function RecordForm({
             checked={!!v}
             onCheckedChange={(v) => set(f.key, !!v)}
           />
-          <label htmlFor={'field-' + f.key}>{f.label}</label>
+          <label htmlFor={'field-' + f.key}>{t(f.label)}</label>
         </div>
       );
     if (f.type === 'student')
@@ -632,7 +630,7 @@ export default function RecordForm({
           value={v}
           onChange={(v) => set(f.key, v)}
           options={[
-            { value: '', label: 'Select class' },
+            { value: '', label: t('Select class') },
             ...classes.map((c) => ({ value: c.id, label: c.name })),
           ]}
         />
@@ -641,7 +639,7 @@ export default function RecordForm({
       return (
         <Picker
           id={'field-' + f.key}
-          label="Select an agreed package"
+          label={t('Select an agreed package')}
           value={v}
           onChange={(v) => set(f.key, v)}
           options={packages
@@ -671,7 +669,7 @@ export default function RecordForm({
       return (
         <Picker
           id={'field-' + f.key}
-          label="Choose the missed lesson"
+          label={t('Choose the missed lesson')}
           value={v}
           onChange={(v) => {
             const a = abs.find((a) => a.id === v);
@@ -689,7 +687,7 @@ export default function RecordForm({
               a.date +
               ' · ' +
               (classes.find((c) => c.id === a.classId)?.name ?? '') +
-              (a.historical ? ' · original record' : ''),
+              (a.historical ? t(' · original record') : ''),
           }))}
         />
       );
@@ -698,7 +696,7 @@ export default function RecordForm({
       return (
         <Choice
           id={'field-' + f.key}
-          label="Select session package"
+          label={t('Select session package')}
           value={String(v)}
           onChange={(v) => {
             const p = priceList.find((p) => p.sessions === Number(v));
@@ -712,13 +710,14 @@ export default function RecordForm({
           options={[
             ...priceList.map((p) => ({
               value: String(p.sessions),
-              label: p.sessions + ' sessions · ' + money(p.price) + ' VND',
+              label:
+                p.sessions + t(' sessions · ') + money(p.price) + t(' VND'),
             })),
             ...(v && !priceList.some((p) => p.sessions === Number(v))
               ? [
                   {
                     value: String(v),
-                    label: v + ' sessions · custom agreement',
+                    label: v + t(' sessions · custom agreement'),
                   },
                 ]
               : []),
@@ -728,6 +727,7 @@ export default function RecordForm({
     if (f.type === 'select')
       return (
         <Choice
+          translateOptions
           id={'field-' + f.key}
           label={f.label}
           value={v}
@@ -736,9 +736,9 @@ export default function RecordForm({
             value: v,
             label:
               v === 'all'
-                ? 'All classes'
+                ? t('All classes')
                 : v === 'class'
-                  ? 'This class only'
+                  ? t('This class only')
                   : v,
           }))}
         />
@@ -778,19 +778,25 @@ export default function RecordForm({
         <DialogContent className="record-dialog">
           <DialogHeader>
             <DialogTitle>
-              {record ? 'Edit ' : ''}
-              {titles[kind] ?? kind}
+              {record ? t('Edit ') : ''}
+              {t(titles[kind] ?? kind)}
             </DialogTitle>
             <DialogDescription>
               {kind === 'package'
-                ? 'Create a new record for each renewal. The agreed fee is the actual discounted amount.'
+                ? t(
+                    'Create a new record for each renewal. The agreed fee is the actual discounted amount.',
+                  )
                 : kind === 'staff'
-                  ? 'Use each person’s own email. Roles and assigned classes are enforced on the server; passwords are provisioned separately.'
+                  ? t(
+                      'Use each person’s own email. Roles and assigned classes are enforced on the server; passwords are provisioned separately.',
+                    )
                   : kind === 'support'
-                    ? 'Free support does not use package sessions.'
+                    ? t('Free support does not use package sessions.')
                     : kind === 'makeup'
-                      ? 'Link the original absence once. Historical records remain unchanged.'
-                      : 'Required fields must be completed before saving.'}
+                      ? t(
+                          'Link the original absence once. Historical records remain unchanged.',
+                        )
+                      : t('Required fields must be completed before saving.')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submit}>
@@ -808,7 +814,7 @@ export default function RecordForm({
                       } as Record<string, string>
                     )[f.key] && (
                       <h3 className="student-form-section">
-                        {
+                        {t(
                           (
                             {
                               name: 'Student details',
@@ -817,8 +823,8 @@ export default function RecordForm({
                               enrollmentDate: 'Dates & study breaks',
                               learningGoals: 'Learning & notes',
                             } as Record<string, string>
-                          )[f.key]
-                        }
+                          )[f.key],
+                        )}
                       </h3>
                     )}
                   <div
@@ -829,7 +835,7 @@ export default function RecordForm({
                   >
                     {f.type !== 'checkbox' && (
                       <label htmlFor={'field-' + f.key}>
-                        {f.label}
+                        {t(f.label)}
                         {f.required ? ' *' : ''}
                       </label>
                     )}
@@ -842,7 +848,7 @@ export default function RecordForm({
                 data.classId !== record.payload?.classId && (
                   <div className="wide form-field">
                     <label htmlFor="transfer-date">
-                      Transfer takes effect on
+                      {t('Transfer takes effect on')}
                     </label>
                     <input
                       id="transfer-date"
@@ -852,14 +858,15 @@ export default function RecordForm({
                       onChange={(e) => set('transferDate', e.target.value)}
                     />
                     <p className="field-help">
-                      The old class history is retained. The new membership
-                      starts on this date.
+                      {t(
+                        'The old class history is retained. The new membership starts on this date.',
+                      )}
                     </p>
                   </div>
                 )}
               {kind === 'package' && (
                 <div className="wide discount-tools">
-                  <span>Apply to the listed price:</span>
+                  <span>{t('Apply to the listed price:')}</span>
                   <Button
                     type="button"
                     variant="outline"
@@ -870,9 +877,9 @@ export default function RecordForm({
                       if (p) set('agreedFee', Math.round(p.price * 0.95));
                     }}
                   >
-                    5% group discount
+                    {t('5% group discount')}
                   </Button>
-                  <span>Or enter any agreed fee above.</span>
+                  <span>{t('Or enter any agreed fee above.')}</span>
                 </div>
               )}
               {kind === 'receipt' && (
@@ -891,7 +898,7 @@ export default function RecordForm({
                       }
                     />
                     <label htmlFor="split-receipt">
-                      Split a family payment across packages
+                      {t('Split a family payment across packages')}
                     </label>
                   </div>
                   {split && (
@@ -899,7 +906,7 @@ export default function RecordForm({
                       {data.allocations.map((a: any, i: number) => (
                         <div className="split-row" key={i}>
                           <Picker
-                            label="Package"
+                            label={t('Package')}
                             value={a.packageId}
                             onChange={(v) => {
                               const arr = [...data.allocations];
@@ -917,11 +924,13 @@ export default function RecordForm({
                                 (students.find((s) => s.id === p.studentId)
                                   ?.name ?? '') +
                                 ' · ' +
-                                p.label,
+                                packageTitle(p),
                             }))}
                           />
                           <input
-                            aria-label={'Allocation ' + (i + 1) + ' amount'}
+                            aria-label={
+                              t('Allocation ') + (i + 1) + t(' amount')
+                            }
                             type="number"
                             value={a.amount}
                             min="1"
@@ -943,7 +952,7 @@ export default function RecordForm({
                               )
                             }
                           >
-                            Remove
+                            {t('Remove')}
                           </Button>
                         </div>
                       ))}
@@ -957,18 +966,18 @@ export default function RecordForm({
                           ])
                         }
                       >
-                        Add another student
+                        {t('Add another student')}
                       </Button>
                       <p className="field-help">
-                        Allocated{' '}
+                        {t('Allocated')}{' '}
                         {money(
                           data.allocations.reduce(
                             (n: number, a: any) => n + Number(a.amount || 0),
                             0,
                           ),
                         )}{' '}
-                        of {money(Number(data.amount || 0))} VND. These must
-                        match.
+                        {t('of')} {money(Number(data.amount || 0))}{' '}
+                        {t('VND. These must match.')}
                       </p>
                     </div>
                   )}
@@ -976,7 +985,7 @@ export default function RecordForm({
               )}
               {kind === 'staff' && data.role === 'TA' && (
                 <div className="wide">
-                  <label>Assigned classes</label>
+                  <label>{t('Assigned classes')}</label>
                   <div className="class-checks">
                     {classes.map((c) => (
                       <div className="checkbox-field" key={c.id}>
@@ -1004,7 +1013,7 @@ export default function RecordForm({
                 ['receipt', 'expense'].includes(kind) && (
                   <div className="wide form-field">
                     <label htmlFor="correction-reason">
-                      Reason if correcting the original amount
+                      {t('Reason if correcting the original amount')}
                     </label>
                     <input
                       id="correction-reason"
@@ -1016,15 +1025,15 @@ export default function RecordForm({
             </div>
             {error && (
               <div className="error-message" role="alert">
-                {error}
+                {message(error)}
               </div>
             )}
             {conflict && (
               <div className="source-notice">
                 <p>
-                  Your draft is still here. Another person changed this record.
-                  Load the latest saved values to start again, or cancel and
-                  copy your draft first.
+                  {t(
+                    'Your draft is still here. Another person changed this record. Load the latest saved values to start again, or cancel and copy your draft first.',
+                  )}
                 </p>
                 <Button
                   type="button"
@@ -1051,7 +1060,7 @@ export default function RecordForm({
                     setError('');
                   }}
                 >
-                  Load latest saved values (replace draft)
+                  {t('Load latest saved values (replace draft)')}
                 </Button>
               </div>
             )}
@@ -1062,7 +1071,7 @@ export default function RecordForm({
                 onClick={requestClose}
                 disabled={busy}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 type="submit"
@@ -1070,8 +1079,8 @@ export default function RecordForm({
                 disabled={busy || conflict}
               >
                 {busy
-                  ? 'Saving…'
-                  : 'Save ' + (kind === 'staff' ? 'access' : 'record')}
+                  ? t('Saving…')
+                  : t('Save ') + (kind === 'staff' ? t('access') : t('record'))}
               </Button>
             </DialogFooter>
           </form>
@@ -1080,15 +1089,15 @@ export default function RecordForm({
       <AlertDialog open={discard} onOpenChange={setDiscard}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Discard unsaved changes?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Your changes have not been saved.
+              {t('Your changes have not been saved.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogCancel>{t('Keep editing')}</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={onClose}>
-              Discard changes
+              {t('Discard changes')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
