@@ -25,7 +25,7 @@ const nativeCode = fs
   .readFileSync('lib/password-auth.ts', 'utf8')
   .replace(
     "import { env } from 'cloudflare:workers';",
-    "const env={SUPABASE_URL:'https://example.test',SUPABASE_SECRET_KEY:'synthetic-server-key'};",
+    "const env={SUPABASE_URL:'https://example.test',SUPABASE_SECRET_KEY:'synthetic-server-key',get BOH_HOSTING_TARGET(){return globalThis.authQA?.hostingTarget}};",
   )
   .replace(
     "import { cookies } from 'next/headers';",
@@ -276,4 +276,19 @@ test('logout revokes only the cookie-derived session and sets matching cookie at
     r.headers.get('set-cookie'),
     /HttpOnly; Path=\/; SameSite=Lax; Max-Age=0; Secure/,
   );
+});
+test('Hostinger ignores spoofed IP headers while keeping shared and account limits', async () => {
+  const q = setup();
+  q.hostingTarget = 'node';
+  for (const ip of ['192.0.2.1', '192.0.2.2']) {
+    await native.limitAuth(new Request('https://boh.example.test/api/auth/login', {
+      headers: { 'cf-connecting-ip': ip, 'x-forwarded-for': ip },
+    }), fixture.email);
+  }
+  assert.equal(q.calls.length, 4);
+  assert.deepEqual(q.calls[0], q.calls[2]);
+  assert.equal(q.calls[0].args.limit, 60);
+  assert.equal(q.calls[1].args.limit, 10);
+  assert.equal(q.calls[0].args.key, await native.hashToken('login:ip:hostinger-shared'));
+  assert.equal(q.calls[1].args.key, await native.hashToken(`login:account:${fixture.email}`));
 });

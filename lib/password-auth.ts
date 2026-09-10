@@ -86,8 +86,12 @@ export async function limitAuth(
   email: string,
   action = 'login',
 ) {
-  // The edge supplies CF-Connecting-IP. Never trust a client X-Forwarded-For.
-  const ip = request.headers.get('cf-connecting-ip') || 'unknown-edge';
+  // Only Cloudflare supplies a trusted CF-Connecting-IP. On Hostinger, retain
+  // a conservative shared limit plus the independent per-account limit until
+  // its verified proxy IP contract is configured. Never trust client IP headers.
+  const ip = env.BOH_HOSTING_TARGET === 'node'
+    ? 'hostinger-shared'
+    : request.headers.get('cf-connecting-ip') || 'unknown-edge';
   for (const [bucket, max] of [
     [`${action}:ip:${ip}`, 60],
     [`${action}:account:${email.toLowerCase()}`, 10],

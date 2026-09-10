@@ -37,6 +37,7 @@ const localBindingConfig = {
 };
 
 export default defineConfig(async ({ command }) => {
+  const isHostinger = process.env.BOH_HOSTING_TARGET === 'node';
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= 'false';
@@ -44,14 +45,23 @@ export default defineConfig(async ({ command }) => {
   process.env.MINIFLARE_REGISTRY_PATH ??= '.wrangler/registry';
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
-  const { cloudflare } = await import('@cloudflare/vite-plugin');
+  const cloudflare = isHostinger
+    ? null
+    : (await import('@cloudflare/vite-plugin')).cloudflare;
 
   return {
     resolve: {
       alias: {
+        ...(isHostinger
+          ? {
+              'cloudflare:workers': fileURLToPath(
+                new URL('./lib/node-env.ts', import.meta.url),
+              ),
+            }
+          : {}),
         '@boh/private-import': fileURLToPath(
           new URL(
-            command === 'serve' &&
+            !isHostinger && command === 'serve' &&
               existsSync(
                 fileURLToPath(new URL('./db/import.json', import.meta.url)),
               )
@@ -68,11 +78,15 @@ export default defineConfig(async ({ command }) => {
       : undefined,
     plugins: [
       vinext(),
-      sites(),
-      cloudflare({
-        viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
-        config: localBindingConfig,
-      }),
+      ...(cloudflare
+        ? [
+            sites(),
+            cloudflare({
+              viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
+              config: localBindingConfig,
+            }),
+          ]
+        : []),
     ],
   };
 });
