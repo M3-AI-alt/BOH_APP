@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
-    "build:hostinger": "BOH_HOSTING_TARGET=node vinext build",
+    "build:hostinger": "BOH_HOSTING_TARGET=node vinext build && node scripts/prepare-hostinger.mjs",
     "start:hostinger": "node scripts/start-hostinger.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",

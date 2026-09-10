@@ -15,12 +15,15 @@ WordPress, or an upload of the Cloudflare worker bundle.
 | Install | `npm ci` including build/dev dependencies |
 | Build command | `npm run build:hostinger` |
 | Start command | `npm run start:hostinger` |
-| Entry file, if asked | `scripts/start-hostinger.mjs` |
+| Entry file, if asked | `dist/standalone/hostinger-server.mjs` |
+| Build script key, if asked instead of command | `build:hostinger` |
+| Output directory | `dist/standalone` |
 
-Keep the project and `dist/standalone` available at runtime. The startup script
-configures the trusted public host before importing Vinext. If hPanel only lets
-you select an output folder/entry rather than a start command, inspect those
-settings before deployment; do not bypass the startup script blindly.
+The build packages the startup and configuration modules inside `dist/standalone`
+so the output is self-contained. The entry configures the trusted public host
+before importing Vinext. Both entry file and output directory are relative to
+the app root, not relative to each other. Do not select Vinext's bare `server.js`
+as the entry: it bypasses BOH's startup configuration.
 
 ## Private runtime settings
 
