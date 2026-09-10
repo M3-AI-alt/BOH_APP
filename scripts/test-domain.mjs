@@ -31,6 +31,64 @@ const r = (kind, id, payload) => ({
   revision: 1,
   updatedAt: '',
 });
+const sourceReview = await import(
+  moduleUrl(
+    readFileSync('lib/source-review.ts', 'utf8').replace(
+      "from './domain'",
+      `from '${moduleUrl(readFileSync('lib/domain.ts', 'utf8').replace("from './types'", `from '${types}'`))}'`,
+    ),
+  )
+);
+test('source review separates identity, package allocation, unknown terms and unassigned marks without creating debts', () => {
+  const records = [
+    r('student', 's', { name: 'Student' }),
+    r('receipt', 'unlinked', { purpose: 'Tuition', amount: 100 }),
+    r('receipt', 'other', { purpose: 'Other income', amount: 100 }),
+    r('receipt', 'student-only', {
+      purpose: 'Deposit',
+      studentId: 's',
+      amount: 100,
+    }),
+    r('receipt', 'family', {
+      purpose: 'Tuition',
+      amount: 100,
+      allocations: [{ studentId: 's', packageId: 'p', amount: 100 }],
+    }),
+    r('receipt', 'partial-allocation', {
+      purpose: 'Tuition',
+      amount: 100,
+      allocations: [{ studentId: 's', packageId: 'p', amount: 50 }],
+    }),
+    r('package', 'p', {
+      studentId: 's',
+      imported: true,
+      sessions: 48,
+      sourceRemaining: 0,
+    }),
+    r('package', 'unknown', {
+      studentId: 's',
+      imported: true,
+      sessions: null,
+      sourceRemaining: null,
+    }),
+    r('unmatched', 'mark', { mark: 'C' }),
+    r('support', 'lesson', { name: 'Nickname', historical: true }),
+  ];
+  const before = JSON.stringify(records);
+  const issues = sourceReview.sourceReviewIssues(records, '2026-09-10');
+  assert.deepEqual(
+    issues.map((x) => [x.id, x.category]),
+    [
+      ['unlinked', 'student'],
+      ['student-only', 'payment'],
+      ['partial-allocation', 'payment'],
+      ['lesson', 'student'],
+      ['unknown', 'terms'],
+      ['mark', 'attendance'],
+    ],
+  );
+  assert.equal(JSON.stringify(records), before);
+});
 test('one canonical identity drives classes, packages, receipts and makeup without rewriting raw IDs', () => {
   const data = [
     r('student', 'current', {

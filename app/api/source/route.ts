@@ -5,6 +5,7 @@ export async function GET(request: Request) {
       await sourceRows(
         await actor(),
         new URL(request.url).searchParams.get('q') ?? '',
+        new URL(request.url).searchParams.get('book') ?? '',
       ),
     );
   } catch (e) {

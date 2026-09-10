@@ -1822,3 +1822,40 @@ a {
     flex-wrap: wrap;
   }
 }
+/* Source checks use stable category colours, not financial payment states. */
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  padding: 0.25rem 0 1rem;
+}
+.audit-filter {
+  min-height: 2.75rem;
+  border-left: 4px solid var(--audit-color, #0c3049);
+}
+.audit-filter span {
+  border-radius: 1rem;
+  background: rgb(128 128 128 / 0.13);
+  padding: 0.1rem 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.audit-student {
+  --audit-color: #ba761c;
+}
+.audit-payment {
+  --audit-color: #2267bc;
+}
+.audit-terms {
+  --audit-color: #7b429c;
+}
+.audit-attendance {
+  --audit-color: #0c8279;
+}
+.source-audit-details {
+  padding: 1rem 0;
+}
+.source-audit-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.5rem 0;
+}

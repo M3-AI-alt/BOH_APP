@@ -19,7 +19,7 @@ const domain = moduleUrl(
     .replaceAll("from './types'", `from '${types}'`),
 );
 const storage = moduleUrl(
-  `export class StorageError extends Error{};export const findRecord=async id=>globalThis.__serverQA.records.find(r=>r.id===id)||null;export const listRecords=async()=>globalThis.__serverQA.records;export const decodeRecord=r=>r;export const storeCall=async(op,args)=>{globalThis.__serverQA.calls.push({op,args});if(op==='commit_record')return {...args.record,revision:2};if(op==='get_setting')return JSON.stringify({dataDate:'2026-09-09'});return {ok:true};};`,
+  `export class StorageError extends Error{};export const findRecord=async id=>globalThis.__serverQA.records.find(r=>r.id===id)||null;export const listRecords=async()=>globalThis.__serverQA.records;export const decodeRecord=r=>r;export const storeCall=async(op,args)=>{globalThis.__serverQA.calls.push({op,args});if(op==='commit_record')return {...args.record,revision:2};if(op==='list_records')return (globalThis.__serverQA.sourceRows||[]).slice(args.offset||0,(args.offset||0)+args.limit);if(op==='get_setting')return JSON.stringify({dataDate:'2026-09-09'});return {ok:true};};`,
 );
 const code = fs
   .readFileSync('lib/server.ts', 'utf8')
@@ -72,6 +72,20 @@ const setup = () =>
     ],
     calls: [],
   });
+test('source version filtering happens before the result limit and source data is denied to TAs', async () => {
+  const state = setup();
+  state.sourceRows = Array.from({ length: 905 }, (_, i) => ({
+    id: String(i),
+    payload: { book: i < 900 ? 'Old.xlsx' : 'Latest.xlsx' },
+  }));
+  const rows = await server.sourceRows(actor, 'Class', 'Latest.xlsx');
+  assert.equal(rows.length, 5);
+  assert.equal(state.calls.filter((c) => c.op === 'list_records').length, 2);
+  await assert.rejects(
+    server.sourceRows({ ...actor, role: 'TA' }, '', 'Latest.xlsx'),
+    /role|access|allowed/i,
+  );
+});
 test('existing package ownership and class membership identity cannot be reassigned', async () => {
   for (const kind of ['package', 'membership']) {
     const state = setup();

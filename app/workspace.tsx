@@ -612,7 +612,7 @@ export default function Workspace({ userName }: { userName: string }) {
                 <span className="source-note" aria-live="polite">
                   {saved
                     ? 'Saved at ' + saved
-                    : 'Updated ' +
+                    : 'App refreshed ' +
                       new Date(snapshot.loadedAt).toLocaleTimeString('en-GB', {
                         timeZone: 'Asia/Ho_Chi_Minh',
                         hour: '2-digit',

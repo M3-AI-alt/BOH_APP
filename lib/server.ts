@@ -131,13 +131,16 @@ export async function snapshot(a: Actor) {
       manifest: a.role === 'TA' ? { cutoff: CUTOFF } : imported.manifest,
       loadedAt: new Date().toISOString(),
     };
-  const [data, members, activity, manifestText, refreshText] =
+  const [data, members, activity, manifestText, refreshText, auditText] =
     await Promise.all([
       allRecords(),
       a.role === 'Director' ? storeCall('list_staff') : [],
       a.role === 'TA' ? [] : storeCall('list_activity'),
       storeCall('get_setting', { key: 'import-manifest' }),
       storeCall('get_setting', { key: 'student-source-refresh' }),
+      a.role === 'TA'
+        ? null
+        : storeCall('get_setting', { key: 'workbook-audit' }),
     ]);
   const manifest = manifestText ? JSON.parse(manifestText) : imported.manifest;
   const sourceRefresh = refreshText ? JSON.parse(refreshText) : null;
@@ -153,6 +156,7 @@ export async function snapshot(a: Actor) {
             ...manifest,
             cutoff: sourceRefresh?.dataDate || CUTOFF,
             sourceRefresh,
+            workbookAudit: auditText ? JSON.parse(auditText) : null,
           },
     loadedAt: new Date().toISOString(),
     database: 'Supabase',
@@ -882,12 +886,22 @@ export async function saveStaff(a: Actor, input: any) {
     staff: { email, name, role: input.role, classIds, active },
   });
 }
-export async function sourceRows(a: Actor, query: string) {
+export async function sourceRows(a: Actor, query: string, book = '') {
   requireRole(a, ['Director', 'Finance']);
-  const rows = await storeCall('list_records', {
-    kind: 'source',
-    query: query.slice(0, 200).replace(/[\\%_]/g, ''),
-    limit: 400,
-  });
-  return rows.map(decodeRecord);
+  const matching = [];
+  for (let offset = 0; ; offset += 900) {
+    const rows = await storeCall('list_records', {
+      kind: 'source',
+      query: query.slice(0, 200).replace(/[\\%_]/g, ''),
+      limit: 900,
+      offset,
+    });
+    matching.push(
+      ...rows.filter(
+        (r: any) => !book || r.payload.book === book.slice(0, 200),
+      ),
+    );
+    if (matching.length >= 400 || rows.length < 900)
+      return matching.slice(0, 400).map(decodeRecord);
+  }
 }

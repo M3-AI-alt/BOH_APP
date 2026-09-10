@@ -38,6 +38,7 @@ import {
   Panel,
 } from './ui';
 import { Payroll, AccountantTasks } from './finance-work';
+import { SourceReview } from './source-review';
 import {
   entries,
   cashSummary,
@@ -1748,36 +1749,29 @@ export function Team(p: ViewProps) {
   );
 }
 export function SourceRecords(p: ViewProps) {
-  const [linkKind, setLinkKind] = useState('all');
-  const unlinked = (['receipt', 'makeup', 'support'] as const)
-    .flatMap((kind) => entries(p.snapshot.records, kind))
-    .filter(
-      (r) =>
-        !r.studentId &&
-        !r.allocations?.length &&
-        (r.kind !== 'receipt' ||
-          r.purpose === 'Tuition' ||
-          r.purpose === 'Deposit'),
-    );
-  const reviewLinks = unlinked.filter(
-    (r) =>
-      (linkKind === 'all' || r.kind === linkKind) &&
-      cleanSearch([r.name, r.source, r.className, r.notes].join(' ')).includes(
-        cleanSearch(p.search),
-      ),
-  );
   const [query, setQuery] = useState('Check học phí ver2'),
     [rows, setRows] = useState<DataRecord[]>([]),
     [busy, setBusy] = useState(false),
+    [searched, setSearched] = useState(false),
+    [latestOnly, setLatestOnly] = useState(true),
     [error, setError] = useState('');
-  async function load() {
+  async function load(target = query) {
     setBusy(true);
     setError('');
     try {
-      const r = await fetch('/api/source?q=' + encodeURIComponent(query));
+      const book = latestOnly
+        ? p.snapshot.manifest.workbookAudit?.file || ''
+        : '';
+      const r = await fetch(
+        '/api/source?q=' +
+          encodeURIComponent(target) +
+          '&book=' +
+          encodeURIComponent(book),
+      );
       const j: any = await r.json();
       if (!r.ok) throw new Error(j.error);
       setRows(j);
+      setSearched(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load source.');
     } finally {
@@ -1789,7 +1783,7 @@ export function SourceRecords(p: ViewProps) {
       <div className="notice">
         <BookOpen size={20} />
         <div>
-          <strong>Your original records are preserved</strong>
+          <strong>Source records & data checks</strong>
           <p>
             Student balances use the original “Check học phí ver2” values. New
             attendance starts after{' '}
@@ -1798,74 +1792,33 @@ export function SourceRecords(p: ViewProps) {
           </p>
         </div>
       </div>
-      <Panel
-        title="Records needing a student match"
-        subtitle={`${unlinked.length} existing records are not yet attached to a confirmed student. Tuition cash stays counted once. Other income is excluded from this list.`}
-        action={
-          <Choice
-            label="Record type"
-            value={linkKind}
-            onChange={setLinkKind}
-            options={[
-              { value: 'all', label: 'All unmatched' },
-              { value: 'receipt', label: 'Tuition receipts' },
-              { value: 'makeup', label: 'Makeup lessons' },
-              { value: 'support', label: 'Free support' },
-            ]}
-          />
-        }
-      >
-        <DataTable
-          headings={['Type', 'Original name', 'Date', 'Source', '']}
-          rows={reviewLinks.map((r) => [
-            <Badge>
-              {r.kind === 'receipt'
-                ? 'Tuition receipt'
-                : r.kind === 'makeup'
-                  ? 'Makeup'
-                  : 'Free support'}
-            </Badge>,
-            r.name || 'Not recorded',
-            r.date || 'Not recorded',
-            r.source,
-            r.kind === 'receipt' ? (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  p.open(
-                    'receipt',
-                    p.snapshot.records.find((x) => x.id === r.id),
-                  )
-                }
-              >
-                Details / match
-              </Button>
-            ) : p.snapshot.actor.role === 'Director' ? (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  p.open(
-                    'student-link',
-                    p.snapshot.records.find((x) => x.id === r.id),
-                  )
-                }
-              >
-                Match student
-              </Button>
-            ) : (
-              'Director review'
-            ),
-          ])}
-        />
-      </Panel>
+      <SourceReview
+        {...p}
+        showSheet={(sheet) => {
+          setQuery(sheet);
+          void load(sheet);
+        }}
+      />
       <div className="section-toolbar">
         <SearchBox
           value={query}
           onChange={setQuery}
           placeholder="Search source sheet or student name"
         />
-        <Button className="primary" onClick={load} disabled={busy}>
+        <Button className="primary" onClick={() => void load()} disabled={busy}>
           {busy ? 'Loading…' : 'Search original records'}
+        </Button>
+        <Button
+          variant="outline"
+          disabled={busy}
+          aria-pressed={latestOnly}
+          onClick={() => {
+            setLatestOnly(!latestOnly);
+            setRows([]);
+            setSearched(false);
+          }}
+        >
+          {latestOnly ? 'Latest workbook only' : 'All source versions'}
         </Button>
         <Button
           variant="outline"
@@ -1889,27 +1842,52 @@ export function SourceRecords(p: ViewProps) {
       {error && <div className="error-message">{error}</div>}
       <Panel
         title="Original workbook rows"
-        subtitle="Up to 400 matching rows. Column letters refer to the original Excel sheet."
+        subtitle={
+          !searched
+            ? 'Search a sheet or student above to show preserved rows.'
+            : rows.length >= 400
+              ? 'First 400 matches. Search a specific sheet or student to narrow the results.'
+              : 'Column letters refer to the original Excel sheet. Older versions are kept separately.'
+        }
       >
         <DataTable
           headings={['Workbook', 'Sheet / row', 'Original data']}
-          rows={rows.map((r) => [
-            r.payload.book,
-            r.payload.sheet + ' · row ' + r.payload.row,
-            <div className="source-cells">
-              {Object.entries(r.payload.cells).map(([k, v]) => (
-                <span key={k}>
-                  <b>{k}</b>
-                  {String(v)}
-                </span>
-              ))}
-            </div>,
-          ])}
+          rows={rows
+            .filter(
+              (r) =>
+                !latestOnly ||
+                !p.snapshot.manifest.workbookAudit ||
+                r.payload.book === p.snapshot.manifest.workbookAudit.file,
+            )
+            .map((r) => [
+              r.payload.book,
+              r.payload.sheet + ' · row ' + r.payload.row,
+              <div className="source-cells">
+                {Object.entries(r.payload.cells).map(([k, v]) => (
+                  <span key={k}>
+                    <b>{k}</b>
+                    {String(v)}
+                  </span>
+                ))}
+              </div>,
+            ])}
         />
+        {searched &&
+          !rows.some(
+            (r) =>
+              !latestOnly ||
+              !p.snapshot.manifest.workbookAudit ||
+              r.payload.book === p.snapshot.manifest.workbookAudit.file,
+          ) && (
+            <p className="muted">
+              No rows found in this source version. Try a sheet name or switch
+              to all source versions.
+            </p>
+          )}
       </Panel>
       <Panel
         title="Unassigned source marks"
-        subtitle="These four marks had no student name in the original row. No identity has been guessed."
+        subtitle={`${entries(p.snapshot.records, 'unmatched').length} source marks have no confirmed student. No identity has been guessed.`}
       >
         <DataTable
           headings={['Source cell', 'Date', 'Mark', 'Reason']}
