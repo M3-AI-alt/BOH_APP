@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Choice, Picker } from './ui';
 import { entries, today, money } from '@/lib/domain';
 import { priceList, type DataRecord } from '@/lib/types';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 type Field = {
   key: string;
   label: string;
@@ -97,6 +107,9 @@ const fields: Record<string, Field[]> = {
   ],
   student: [
     { key: 'name', label: 'Student name / Họ tên', required: true },
+    { key: 'preferredName', label: 'English / preferred name' },
+    { key: 'birthDate', label: 'Date of birth / Ngày sinh', type: 'date' },
+    { key: 'school', label: 'School / Trường học' },
     {
       key: 'classId',
       label: 'Home class / Lớp chính',
@@ -118,8 +131,23 @@ const fields: Record<string, Field[]> = {
     },
     { key: 'parent', label: 'Parent / Phụ huynh' },
     { key: 'phone', label: 'Phone / Điện thoại' },
+    { key: 'parentEmail', label: 'Parent email', type: 'email' },
+    { key: 'zalo', label: 'Zalo contact' },
+    { key: 'secondParent', label: 'Second / emergency contact' },
+    { key: 'secondPhone', label: 'Second contact phone', type: 'tel' },
+    { key: 'address', label: 'Address / Địa chỉ' },
+    {
+      key: 'enrollmentDate',
+      label: 'Enrollment date / Ngày nhập học',
+      type: 'date',
+    },
     { key: 'pauseFrom', label: 'Pause from', type: 'date' },
     { key: 'resumeDate', label: 'Resume on', type: 'date' },
+    {
+      key: 'learningGoals',
+      label: 'Learning goals / Mục tiêu học tập',
+      type: 'textarea',
+    },
     { key: 'notes', label: 'Notes', type: 'textarea' },
   ],
   package: [
@@ -448,6 +476,13 @@ export default function RecordForm({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [reason, setReason] = useState('');
+  const initial = useRef(JSON.stringify(data));
+  const [discard, setDiscard] = useState(false);
+  function requestClose() {
+    if (busy) return;
+    if (JSON.stringify(data) !== initial.current || reason) setDiscard(true);
+    else onClose();
+  }
   const students = entries(records, 'student'),
     classes = entries(records, 'class').filter((c) => !c.archived),
     packages = entries(records, 'package');
@@ -469,6 +504,13 @@ export default function RecordForm({
     setError('');
     try {
       const p = { ...data };
+      const missing = (fields[kind] || []).find(
+        (f) => f.required && (p[f.key] === '' || p[f.key] == null),
+      );
+      if (missing) {
+        document.getElementById('field-' + missing.key)?.focus();
+        throw new Error('Please complete ' + missing.label + '.');
+      }
       if (kind === 'package') {
         p.label = p.label || p.sessions + ' sessions';
         p.sessions = Number(p.sessions);
@@ -514,6 +556,7 @@ export default function RecordForm({
     if (f.type === 'student')
       return (
         <Picker
+          id={'field-' + f.key}
           label={f.label}
           value={v}
           onChange={(v) => set(f.key, v)}
@@ -531,6 +574,7 @@ export default function RecordForm({
     if (f.type === 'class')
       return (
         <Choice
+          id={'field-' + f.key}
           label={f.label}
           value={v}
           onChange={(v) => set(f.key, v)}
@@ -543,6 +587,7 @@ export default function RecordForm({
     if (f.type === 'package')
       return (
         <Picker
+          id={'field-' + f.key}
           label="Select an agreed package"
           value={v}
           onChange={(v) => set(f.key, v)}
@@ -567,6 +612,7 @@ export default function RecordForm({
       );
       return (
         <Picker
+          id={'field-' + f.key}
           label="Choose the missed lesson"
           value={v}
           onChange={(v) => {
@@ -592,6 +638,7 @@ export default function RecordForm({
     if (f.type === 'price')
       return (
         <Choice
+          id={'field-' + f.key}
           label="Select session package"
           value={String(v)}
           onChange={(v) => {
@@ -603,15 +650,26 @@ export default function RecordForm({
               agreedFee: p?.price ?? d.agreedFee,
             }));
           }}
-          options={priceList.map((p) => ({
-            value: String(p.sessions),
-            label: p.sessions + ' sessions · ' + money(p.price) + ' VND',
-          }))}
+          options={[
+            ...priceList.map((p) => ({
+              value: String(p.sessions),
+              label: p.sessions + ' sessions · ' + money(p.price) + ' VND',
+            })),
+            ...(v && !priceList.some((p) => p.sessions === Number(v))
+              ? [
+                  {
+                    value: String(v),
+                    label: v + ' sessions · custom agreement',
+                  },
+                ]
+              : []),
+          ]}
         />
       );
     if (f.type === 'select')
       return (
         <Choice
+          id={'field-' + f.key}
           label={f.label}
           value={v}
           onChange={(v) => set(f.key, v)}
@@ -655,240 +713,286 @@ export default function RecordForm({
     );
   }
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent className="record-dialog">
-        <DialogHeader>
-          <DialogTitle>
-            {record ? 'Edit ' : ''}
-            {titles[kind] ?? kind}
-          </DialogTitle>
-          <DialogDescription>
-            {kind === 'package'
-              ? 'Create a new record for each renewal. The agreed fee is the actual discounted amount.'
-              : kind === 'staff'
-                ? 'Roles are enforced on the server. Staff also need permission to open the private site.'
-                : kind === 'support'
-                  ? 'Free support does not use package sessions.'
-                  : kind === 'makeup'
-                    ? 'Link the original absence once. Historical records remain unchanged.'
-                    : 'Required fields must be completed before saving.'}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit}>
-          <div className="form-grid">
-            {(fields[kind] ?? []).map((f) => (
-              <div
-                className={
-                  (f.type === 'textarea' ? 'wide ' : '') + 'form-field'
-                }
-                key={f.key}
-              >
-                {f.type !== 'checkbox' && (
-                  <label htmlFor={'field-' + f.key}>
-                    {f.label}
-                    {f.required ? ' *' : ''}
-                  </label>
-                )}
-                {control(f)}
-              </div>
-            ))}
-            {kind === 'student' &&
-              record &&
-              data.classId !== record.payload?.classId && (
-                <div className="wide form-field">
-                  <label htmlFor="transfer-date">
-                    Transfer takes effect on
-                  </label>
-                  <input
-                    id="transfer-date"
-                    type="date"
-                    required
-                    value={data.transferDate ?? today()}
-                    onChange={(e) => set('transferDate', e.target.value)}
-                  />
-                  <p className="field-help">
-                    The old class history is retained. The new membership starts
-                    on this date.
-                  </p>
-                </div>
-              )}
-            {kind === 'package' && (
-              <div className="wide discount-tools">
-                <span>Apply to the listed price:</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const p = priceList.find(
-                      (p) => p.sessions === Number(data.sessions),
-                    );
-                    if (p) set('agreedFee', Math.round(p.price * 0.95));
-                  }}
-                >
-                  5% group discount
-                </Button>
-                <span>Or enter any agreed fee above.</span>
-              </div>
-            )}
-            {kind === 'receipt' && (
-              <div className="wide">
-                <div className="checkbox-field">
-                  <Checkbox
-                    id="split-receipt"
-                    checked={split}
-                    onCheckedChange={(v) =>
-                      set(
-                        'allocations',
-                        v ? [{ packageId: '', studentId: '', amount: 0 }] : [],
-                      )
+    <>
+      <Dialog open onOpenChange={(open) => !open && requestClose()}>
+        <DialogContent className="record-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {record ? 'Edit ' : ''}
+              {titles[kind] ?? kind}
+            </DialogTitle>
+            <DialogDescription>
+              {kind === 'package'
+                ? 'Create a new record for each renewal. The agreed fee is the actual discounted amount.'
+                : kind === 'staff'
+                  ? 'Roles are enforced on the server. Staff also need permission to open the private site.'
+                  : kind === 'support'
+                    ? 'Free support does not use package sessions.'
+                    : kind === 'makeup'
+                      ? 'Link the original absence once. Historical records remain unchanged.'
+                      : 'Required fields must be completed before saving.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submit}>
+            <div className="form-grid">
+              {(fields[kind] ?? []).map((f) => (
+                <Fragment key={f.key}>
+                  {kind === 'student' &&
+                    (
+                      {
+                        name: 'Student details',
+                        classId: 'Enrollment',
+                        parent: 'Parent & contact details',
+                        enrollmentDate: 'Dates & study breaks',
+                        learningGoals: 'Learning & notes',
+                      } as Record<string, string>
+                    )[f.key] && (
+                      <h3 className="student-form-section">
+                        {
+                          (
+                            {
+                              name: 'Student details',
+                              classId: 'Enrollment',
+                              parent: 'Parent & contact details',
+                              enrollmentDate: 'Dates & study breaks',
+                              learningGoals: 'Learning & notes',
+                            } as Record<string, string>
+                          )[f.key]
+                        }
+                      </h3>
+                    )}
+                  <div
+                    className={
+                      (f.type === 'textarea' ? 'wide ' : '') + 'form-field'
                     }
-                  />
-                  <label htmlFor="split-receipt">
-                    Split a family payment across packages
-                  </label>
-                </div>
-                {split && (
-                  <div className="split-rows">
-                    {data.allocations.map((a: any, i: number) => (
-                      <div className="split-row" key={i}>
-                        <Picker
-                          label="Package"
-                          value={a.packageId}
-                          onChange={(v) => {
-                            const arr = [...data.allocations];
-                            arr[i] = {
-                              ...arr[i],
-                              packageId: v,
-                              studentId: packages.find((p) => p.id === v)
-                                ?.studentId,
-                            };
-                            set('allocations', arr);
-                          }}
-                          options={packages.map((p) => ({
-                            id: p.id,
-                            label:
-                              (students.find((s) => s.id === p.studentId)
-                                ?.name ?? '') +
-                              ' · ' +
-                              p.label,
-                          }))}
-                        />
-                        <input
-                          aria-label={'Allocation ' + (i + 1) + ' amount'}
-                          type="number"
-                          value={a.amount}
-                          min="1"
-                          onChange={(e) => {
-                            const arr = [...data.allocations];
-                            arr[i] = { ...a, amount: Number(e.target.value) };
-                            set('allocations', arr);
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() =>
-                            set(
-                              'allocations',
-                              data.allocations.filter(
-                                (_: any, j: number) => j !== i,
-                              ),
-                            )
-                          }
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        set('allocations', [
-                          ...data.allocations,
-                          { packageId: '', studentId: '', amount: 0 },
-                        ])
-                      }
-                    >
-                      Add another student
-                    </Button>
+                    key={f.key}
+                  >
+                    {f.type !== 'checkbox' && (
+                      <label htmlFor={'field-' + f.key}>
+                        {f.label}
+                        {f.required ? ' *' : ''}
+                      </label>
+                    )}
+                    {control(f)}
+                  </div>
+                </Fragment>
+              ))}
+              {kind === 'student' &&
+                record &&
+                data.classId !== record.payload?.classId && (
+                  <div className="wide form-field">
+                    <label htmlFor="transfer-date">
+                      Transfer takes effect on
+                    </label>
+                    <input
+                      id="transfer-date"
+                      type="date"
+                      required
+                      value={data.transferDate ?? today()}
+                      onChange={(e) => set('transferDate', e.target.value)}
+                    />
                     <p className="field-help">
-                      Allocated{' '}
-                      {money(
-                        data.allocations.reduce(
-                          (n: number, a: any) => n + Number(a.amount || 0),
-                          0,
-                        ),
-                      )}{' '}
-                      of {money(Number(data.amount || 0))} VND. These must
-                      match.
+                      The old class history is retained. The new membership
+                      starts on this date.
                     </p>
                   </div>
                 )}
-              </div>
-            )}
-            {kind === 'staff' && data.role === 'TA' && (
-              <div className="wide">
-                <label>Assigned classes</label>
-                <div className="class-checks">
-                  {classes.map((c) => (
-                    <div className="checkbox-field" key={c.id}>
-                      <Checkbox
-                        id={'assign-' + c.id}
-                        checked={data.classIds?.includes(c.id)}
-                        onCheckedChange={(v) =>
-                          set(
-                            'classIds',
-                            v
-                              ? [...data.classIds, c.id]
-                              : data.classIds.filter(
-                                  (id: string) => id !== c.id,
-                                ),
-                          )
-                        }
-                      />
-                      <label htmlFor={'assign-' + c.id}>{c.name}</label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {record?.payload?.imported &&
-              ['receipt', 'expense'].includes(kind) && (
-                <div className="wide form-field">
-                  <label htmlFor="correction-reason">
-                    Reason if correcting the original amount
-                  </label>
-                  <input
-                    id="correction-reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
+              {kind === 'package' && (
+                <div className="wide discount-tools">
+                  <span>Apply to the listed price:</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const p = priceList.find(
+                        (p) => p.sessions === Number(data.sessions),
+                      );
+                      if (p) set('agreedFee', Math.round(p.price * 0.95));
+                    }}
+                  >
+                    5% group discount
+                  </Button>
+                  <span>Or enter any agreed fee above.</span>
                 </div>
               )}
-          </div>
-          {error && (
-            <div className="error-message" role="alert">
-              {error}
+              {kind === 'receipt' && (
+                <div className="wide">
+                  <div className="checkbox-field">
+                    <Checkbox
+                      id="split-receipt"
+                      checked={split}
+                      onCheckedChange={(v) =>
+                        set(
+                          'allocations',
+                          v
+                            ? [{ packageId: '', studentId: '', amount: 0 }]
+                            : [],
+                        )
+                      }
+                    />
+                    <label htmlFor="split-receipt">
+                      Split a family payment across packages
+                    </label>
+                  </div>
+                  {split && (
+                    <div className="split-rows">
+                      {data.allocations.map((a: any, i: number) => (
+                        <div className="split-row" key={i}>
+                          <Picker
+                            label="Package"
+                            value={a.packageId}
+                            onChange={(v) => {
+                              const arr = [...data.allocations];
+                              arr[i] = {
+                                ...arr[i],
+                                packageId: v,
+                                studentId: packages.find((p) => p.id === v)
+                                  ?.studentId,
+                              };
+                              set('allocations', arr);
+                            }}
+                            options={packages.map((p) => ({
+                              id: p.id,
+                              label:
+                                (students.find((s) => s.id === p.studentId)
+                                  ?.name ?? '') +
+                                ' · ' +
+                                p.label,
+                            }))}
+                          />
+                          <input
+                            aria-label={'Allocation ' + (i + 1) + ' amount'}
+                            type="number"
+                            value={a.amount}
+                            min="1"
+                            onChange={(e) => {
+                              const arr = [...data.allocations];
+                              arr[i] = { ...a, amount: Number(e.target.value) };
+                              set('allocations', arr);
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() =>
+                              set(
+                                'allocations',
+                                data.allocations.filter(
+                                  (_: any, j: number) => j !== i,
+                                ),
+                              )
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          set('allocations', [
+                            ...data.allocations,
+                            { packageId: '', studentId: '', amount: 0 },
+                          ])
+                        }
+                      >
+                        Add another student
+                      </Button>
+                      <p className="field-help">
+                        Allocated{' '}
+                        {money(
+                          data.allocations.reduce(
+                            (n: number, a: any) => n + Number(a.amount || 0),
+                            0,
+                          ),
+                        )}{' '}
+                        of {money(Number(data.amount || 0))} VND. These must
+                        match.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {kind === 'staff' && data.role === 'TA' && (
+                <div className="wide">
+                  <label>Assigned classes</label>
+                  <div className="class-checks">
+                    {classes.map((c) => (
+                      <div className="checkbox-field" key={c.id}>
+                        <Checkbox
+                          id={'assign-' + c.id}
+                          checked={data.classIds?.includes(c.id)}
+                          onCheckedChange={(v) =>
+                            set(
+                              'classIds',
+                              v
+                                ? [...data.classIds, c.id]
+                                : data.classIds.filter(
+                                    (id: string) => id !== c.id,
+                                  ),
+                            )
+                          }
+                        />
+                        <label htmlFor={'assign-' + c.id}>{c.name}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {record?.payload?.imported &&
+                ['receipt', 'expense'].includes(kind) && (
+                  <div className="wide form-field">
+                    <label htmlFor="correction-reason">
+                      Reason if correcting the original amount
+                    </label>
+                    <input
+                      id="correction-reason"
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                  </div>
+                )}
             </div>
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" className="primary" disabled={busy}>
-              {busy
-                ? 'Saving…'
-                : 'Save ' + (kind === 'staff' ? 'access' : 'record')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            {error && (
+              <div className="error-message" role="alert">
+                {error}
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={requestClose}
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="primary" disabled={busy}>
+                {busy
+                  ? 'Saving…'
+                  : 'Save ' + (kind === 'staff' ? 'access' : 'record')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={discard} onOpenChange={setDiscard}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your changes have not been saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={onClose}>
+              Discard changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

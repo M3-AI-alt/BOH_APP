@@ -30,12 +30,14 @@ export function Choice({
   options,
   label,
   disabled = false,
+  id,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   label: string;
   disabled?: boolean;
+  id?: string;
 }) {
   return (
     <Select
@@ -43,7 +45,7 @@ export function Choice({
       onValueChange={(v) => onChange(v === '__none' ? '' : String(v ?? ''))}
       disabled={disabled}
     >
-      <SelectTrigger aria-label={label} className="choice">
+      <SelectTrigger id={id} aria-label={label} className="choice">
         <SelectValue>
           {options.find((o) => o.value === value)?.label || label}
         </SelectValue>
@@ -63,11 +65,13 @@ export function Picker({
   onChange,
   options,
   label,
+  id,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { id: string; label: string }[];
   label: string;
+  id?: string;
 }) {
   return (
     <Combobox
@@ -76,7 +80,7 @@ export function Picker({
       onValueChange={(v) => onChange(v?.id ?? '')}
       itemToStringLabel={(o) => o.label}
     >
-      <ComboboxInput aria-label={label} placeholder={label} showClear />
+      <ComboboxInput id={id} aria-label={label} placeholder={label} showClear />
       <ComboboxContent>
         <ComboboxEmpty>No matching records</ComboboxEmpty>
         <ComboboxList>
@@ -99,20 +103,30 @@ export function Badge({
 }) {
   const t =
     tone ??
-    (/Overdue|Unpaid/.test(String(children))
+    (/Overdue|Unpaid/i.test(String(children))
       ? 'red'
-      : /Partial|pending|note|Text|Unassigned/.test(String(children))
+      : /Partial|pending|note|Text|Unassigned|confirmation|review|Payment expected|No package/i.test(
+            String(children),
+          )
         ? 'amber'
-        : /Renewal|Planned|Expected|Trial/.test(String(children))
+        : /Renewal|Planned|Expected|Trial|Transferred/i.test(String(children))
           ? 'blue'
-          : /Paid|Covered|Active|Completed|Open|Recorded/.test(String(children))
+          : /Paid|Covered|^Active$|Completed|^Open$|^Recorded$/i.test(
+                String(children),
+              )
             ? 'green'
             : 'grey');
   return <span className={'badge ' + t}>{children}</span>;
 }
 export function ClassTag({ cl }: { cl: any }) {
   return (
-    <span className="class-tag">
+    <span
+      className="class-tag"
+      style={{
+        borderColor: cl?.color ?? '#8895aa',
+        background: (cl?.color ?? '#8895aa') + '12',
+      }}
+    >
       <i style={{ background: cl?.color ?? '#8895aa' }} />
       {cl?.name?.replace('BOH ', '') ?? 'No class'}
     </span>

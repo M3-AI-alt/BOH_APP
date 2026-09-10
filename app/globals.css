@@ -424,7 +424,11 @@ small {
   color: #fff;
   border-color: var(--brand-navy);
   border-top: 3px solid var(--brand-gold);
-  background: radial-gradient(ellipse at top right, #1c4961 0, var(--brand-navy) 64%);
+  background: radial-gradient(
+    ellipse at top right,
+    #1c4961 0,
+    var(--brand-navy) 64%
+  );
 }
 .icon-tile {
   display: grid;
@@ -1609,5 +1613,212 @@ a {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Student workspace: class, package and payment colours have distinct roles. */
+.student-scope-tabs {
+  display: flex;
+  margin: 0 24px 16px;
+  max-width: calc(100% - 48px);
+  height: auto;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.student-scope-tabs button {
+  padding: 10px 13px;
+  min-height: 44px;
+}
+.filter-count {
+  margin-left: 7px;
+  border-radius: 20px;
+  padding: 1px 7px;
+  background: #e9eef6;
+  color: #32485f;
+  font-size: 0.8125rem;
+}
+.student-table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 24px 20px;
+}
+.student-table-tools .choice {
+  width: auto;
+  min-width: 175px;
+}
+.student-badge-stack,
+.student-session-cell,
+.student-package-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+.student-session-cell strong {
+  color: #183951;
+  font-size: 1rem;
+}
+.student-package-list small {
+  display: block;
+  margin-top: 5px;
+  color: #52657c;
+}
+.package-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #edf1f7;
+  color: #334c68;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.package-24 {
+  background: #e7f4fc;
+  color: #145779;
+}
+.package-48 {
+  background: #eceefe;
+  color: #464399;
+}
+.package-96 {
+  background: #f5eafa;
+  color: #783587;
+}
+.package-192 {
+  background: #fceaf1;
+  color: #8c2853;
+}
+.package-288 {
+  background: #fff1d7;
+  color: #735217;
+}
+.class-tag {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: #30475e;
+}
+.class-tag i {
+  width: 9px;
+  height: 9px;
+}
+.badge.grey,
+.badge {
+  color: #526079;
+}
+.badge.amber {
+  color: #75520d;
+}
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.student-sheet .profile-tabs {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  height: auto !important;
+  overflow: visible;
+  gap: 4px;
+  margin: 20px 0;
+}
+.profile-tabs [role='tab'] {
+  min-height: 42px;
+  flex: 1;
+}
+.profile-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 24px;
+}
+.profile-details dt {
+  color: #52657c;
+  font-size: 0.875rem;
+  margin-bottom: 5px;
+}
+.profile-details dd {
+  margin: 0;
+  color: #15354d;
+  overflow-wrap: anywhere;
+}
+.profile-note {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f5f7fb;
+}
+.profile-note p {
+  margin: 7px 0 0;
+  white-space: pre-wrap;
+}
+.profile-help {
+  color: #52657c;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+.profile-lifecycle {
+  margin-top: 30px;
+  padding: 20px;
+  border: 1px solid #ebd8df;
+  border-radius: 14px;
+  background: #fffafb;
+}
+.profile-lifecycle p {
+  line-height: 1.6;
+  margin: 9px 0 16px;
+}
+.student-form-section {
+  grid-column: 1/-1;
+  font-size: 14px;
+  color: var(--navy);
+  border-bottom: 1px solid #e6ebf3;
+  padding-bottom: 10px;
+  margin: 8px 0 0;
+}
+.student-action-dialog {
+  max-width: min(520px, calc(100vw - 32px)) !important;
+}
+.student-action-dialog label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.student-action-dialog input {
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  min-height: 44px;
+  width: 100%;
+}
+.record-dialog [data-slot='dialog-footer'] {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: #f9fbfe;
+}
+.detail-stats strong {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .student-scope-tabs {
+    margin: 0 12px 12px;
+    max-width: calc(100% - 24px);
+  }
+  .student-table-tools {
+    padding: 0 12px 16px;
+  }
+  .profile-details {
+    grid-template-columns: 1fr;
+  }
+  .profile-actions > button {
+    flex: 1 1 45%;
+    min-height: 44px;
+  }
+  .profile-lifecycle .button-row {
+    flex-wrap: wrap;
   }
 }

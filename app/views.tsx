@@ -49,6 +49,7 @@ import {
   cleanSearch,
   money,
   allocations,
+  packageTitle,
 } from '@/lib/domain';
 import { CUTOFF, priceList, type DataRecord, type Snapshot } from '@/lib/types';
 export type ViewProps = {
@@ -507,7 +508,9 @@ export function Attendance(p: ViewProps) {
                           const a = lookup.get(m.id + ':' + d);
                           const editable =
                             canEdit &&
-                            d > CUTOFF &&
+                            d > (p.snapshot.manifest?.cutoff || CUTOFF) &&
+                            !a?.historical &&
+                            !['Archived', 'Transferred'].includes(st?.status) &&
                             d <= today() &&
                             (!m.from || d >= m.from) &&
                             (!m.until || d <= m.until);
@@ -705,53 +708,217 @@ function LessonLog(
 }
 export function Students(p: ViewProps) {
   const classes = entries(p.snapshot.records, 'class');
+  const [scope, setScope] = useState('current');
+  const [size, setSize] = useState('');
+  const [sort, setSort] = useState('name');
   const review = useMemo(
     () => studentReview(p.snapshot.records, p.reviewDate),
     [p.snapshot.records, p.reviewDate],
   );
-  const list = review.filter(
-    (s) =>
-      (!p.classFilter || s.classId === p.classFilter) &&
-      cleanSearch(s.name + ' ' + (s.parent ?? '')).includes(
-        cleanSearch(p.search),
-      ),
-  );
+  const scopes = [
+    { value: 'current', label: 'Current students' },
+    { value: 'review', label: 'Needs review' },
+    { value: 'inactive', label: 'Paused / stopped' },
+    { value: 'history', label: 'All history' },
+  ];
+  const inScope = (s: any, value: string) =>
+    value === 'history' ||
+    (value === 'inactive'
+      ? ['Paused', 'Stopped', 'Archived', 'Transferred'].includes(
+          s.enrollmentStatus,
+        )
+      : value === 'review'
+        ? !s.canonicalStudentId &&
+          (s.enrollmentStatus === 'Roster only' ||
+            s.sessions === null ||
+            s.displayPackages.some(
+              (pkg: any) => !pkg.sessions || pkg.sourcePending,
+            ))
+        : !s.canonicalStudentId &&
+          ['Active', 'Free', 'Ends without renewal'].includes(
+            s.enrollmentStatus,
+          ));
+  const list = review
+    .filter(
+      (s) =>
+        inScope(s, scope) &&
+        (!size ||
+          s.displayPackages.some(
+            (pkg: any) => String(pkg.sessions) === size,
+          )) &&
+        (!p.classFilter || s.classId === p.classFilter) &&
+        cleanSearch(
+          [s.name, s.preferredName, s.parent, s.phone, s.secondPhone]
+            .filter(Boolean)
+            .join(' '),
+        ).includes(cleanSearch(p.search)),
+    )
+    .sort((a, b) =>
+      sort === 'sessions'
+        ? (a.sessions ?? Infinity) - (b.sessions ?? Infinity) ||
+          a.name.localeCompare(b.name, 'vi')
+        : a.name.localeCompare(b.name, 'vi'),
+    );
   return (
     <Panel
       title="Student directory"
-      subtitle={list.length + ' students · click a name to open their profile'}
+      subtitle={`${list.length} shown · balances as of ${p.reviewDate}${p.snapshot.manifest?.sourceRefresh ? ' · Sheet checked ' + p.snapshot.manifest.sourceRefresh.checkedAt : ''}`}
     >
+      <div
+        role="group"
+        aria-label="Student list view"
+        className="student-scope-tabs"
+      >
+        {scopes.map((s) => (
+          <Button
+            variant={scope === s.value ? 'default' : 'outline'}
+            aria-pressed={scope === s.value}
+            key={s.value}
+            onClick={() => setScope(s.value)}
+          >
+            {s.label}
+            <span className="filter-count">
+              {review.filter((r) => inScope(r, s.value)).length}
+            </span>
+          </Button>
+        ))}
+      </div>
+      <div className="student-table-tools">
+        <Choice
+          label="Package size"
+          value={size}
+          onChange={setSize}
+          options={[
+            { value: '', label: 'All package sizes' },
+            ...Array.from(
+              new Set(
+                review
+                  .flatMap((s) =>
+                    s.displayPackages.map((pkg: any) => pkg.sessions),
+                  )
+                  .filter((n) => typeof n === 'number'),
+              ),
+            )
+              .sort((a: any, b: any) => a - b)
+              .map((n) => ({ value: String(n), label: `${n} sessions` })),
+          ]}
+        />
+        <Choice
+          label="Sort students"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: 'name', label: 'Name A–Z' },
+            { value: 'sessions', label: 'Fewest sessions first' },
+          ]}
+        />
+        {(size || p.classFilter) && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSize('');
+              p.setClassFilter('');
+            }}
+          >
+            Clear package / class filters
+          </Button>
+        )}
+      </div>
       <DataTable
         headings={[
           'Student',
           'Class',
-          'Status',
+          'Enrollment / payment',
           'Sessions left',
-          'Package / payment',
+          'Package purchased',
           'Parent',
           '',
         ]}
         rows={list.map((s) => [
-          <button className="name-link" onClick={() => p.detail(s.id)}>
+          <button
+            className="name-link"
+            onClick={() => p.detail(s.canonicalStudentId || s.id)}
+          >
             {s.name}
           </button>,
           <ClassTag cl={classes.find((c) => c.id === s.classId)} />,
-          <Badge>{s.status}</Badge>,
-          s.sessions === null ? 'Not recorded' : s.sessions,
-          <span>
-            {s.packages.length} package{s.packages.length === 1 ? '' : 's'}
-            {s.due > 0 && (
-              <small className="red-text">{money(s.due)} VND balance</small>
-            )}
-          </span>,
+          <div className="student-badge-stack">
+            <Badge>
+              {s.enrollmentStatus === 'Roster only'
+                ? 'History / needs review'
+                : s.enrollmentStatus}
+            </Badge>
+            {!s.canonicalStudentId && <Badge>{s.paymentStatus}</Badge>}
+          </div>,
+          s.canonicalStudentId ? (
+            'See current profile'
+          ) : (
+            <div className="student-session-cell">
+              <strong>
+                {s.sessions === null ? 'Needs confirmation' : s.sessions}
+              </strong>
+              {s.overrun > 0 && (
+                <small className="red-text">
+                  {s.overrun} lessons beyond package
+                </small>
+              )}
+            </div>
+          ),
+          s.canonicalStudentId ? (
+            <button
+              className="name-link"
+              onClick={() => p.detail(s.canonicalStudentId)}
+            >
+              Open linked package →
+            </button>
+          ) : (
+            <div className="student-package-list">
+              {s.displayPackages.length ? (
+                [...s.displayPackages]
+                  .sort(
+                    (a: any, b: any) =>
+                      Number((b.remaining ?? 0) > 0) -
+                      Number((a.remaining ?? 0) > 0),
+                  )
+                  .map((pkg: any) => (
+                    <div key={pkg.id}>
+                      <span
+                        className={
+                          'package-chip package-' + (pkg.sessions || 'unknown')
+                        }
+                      >
+                        {packageTitle(pkg)}
+                      </span>
+                      <small>
+                        {pkg.startDate > p.reviewDate ? 'Upcoming · ' : ''}
+                        {pkg.startDate || 'Start not recorded'}
+                        {pkg.remaining === 0 ? ' · Completed' : ''}
+                      </small>
+                    </div>
+                  ))
+              ) : (
+                <span className="muted">
+                  {s.enrollmentStatus === 'Roster only'
+                    ? 'No paid package linked to this historical row'
+                    : 'No agreed package recorded'}
+                </span>
+              )}
+              {s.due > 0 && (
+                <small className="red-text">{money(s.due)} VND balance</small>
+              )}
+            </div>
+          ),
           s.parent || '—',
           p.snapshot.actor.role === 'Director' ? (
             <Button
               variant="ghost"
+              disabled={s.enrollmentStatus === 'Archived'}
               onClick={() =>
                 p.open(
                   'student',
-                  p.snapshot.records.find((r) => r.id === s.id),
+                  p.snapshot.records.find(
+                    (r) => r.id === (s.canonicalStudentId || s.id),
+                  ),
                 )
               }
             >

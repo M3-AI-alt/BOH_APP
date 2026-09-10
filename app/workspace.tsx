@@ -41,6 +41,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Badge, Choice, ClassTag, SearchBox, DataTable } from './ui';
 import RecordForm from './record-form';
+import StudentProfile from './student-profile';
 import {
   Overview,
   Attendance,
@@ -649,98 +650,15 @@ export default function Workspace({ userName }: { userName: string }) {
             </SheetDescription>
           </SheetHeader>
           {st && snapshot && (
-            <div className="detail-body">
-              <div className="button-row">
-                <ClassTag cl={classes.find((c) => c.id === st.classId)} />
-                <Badge>{st.status}</Badge>
-              </div>
-              <div className="detail-stats">
-                <div>
-                  <span>Sessions remaining</span>
-                  <strong>{st.sessions ?? '—'}</strong>
-                </div>
-                <div>
-                  <span>Confirmed amount due</span>
-                  <strong>
-                    {money(st.due)}
-                    <small> VND</small>
-                  </strong>
-                </div>
-              </div>
-              <div className="detail-contact">
-                <span>Parent</span>
-                <strong>{st.parent || 'Not recorded'}</strong>
-                <span>Phone</span>
-                <strong>{st.phone || 'Not recorded'}</strong>
-              </div>
-              <h2>Packages</h2>
-              {st.packages.map((p: any) => (
-                <section className="detail-package" key={p.id}>
-                  <div className="button-row">
-                    <strong>{p.label}</strong>
-                    <Badge>
-                      {p.imported ? 'Original package' : 'New package'}
-                    </Badge>
-                  </div>
-                  <dl>
-                    <dt>Start</dt>
-                    <dd>{p.startDate ?? '—'}</dd>
-                    <dt>Agreed / source value</dt>
-                    <dd>{money(p.agreedFee)} VND</dd>
-                    <dt>Recorded paid</dt>
-                    <dd>{money(p.paid)} VND</dd>
-                    <dt>Sessions left</dt>
-                    <dd>{p.remaining ?? '—'}</dd>
-                    {p.imported && (
-                      <>
-                        <dt>Original remaining balance</dt>
-                        <dd>{p.sourceRemaining ?? '—'}</dd>
-                      </>
-                    )}
-                  </dl>
-                  {p.sourceNote && (
-                    <p className="source-note-text">{p.sourceNote}</p>
-                  )}
-                </section>
-              ))}
-              <div className="button-row">
-                {role === 'Director' && (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      open(
-                        'student',
-                        snapshot.records.find((r) => r.id === st.id),
-                      )
-                    }
-                  >
-                    Edit student
-                  </Button>
-                )}
-                <Button
-                  className="primary"
-                  onClick={() =>
-                    open('package', undefined, {
-                      studentId: st.id,
-                      classId: st.classId,
-                    })
-                  }
-                >
-                  Add renewal
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    open('receipt', undefined, {
-                      studentId: st.id,
-                      name: st.name,
-                    })
-                  }
-                >
-                  Record payment
-                </Button>
-              </div>
-            </div>
+            <StudentProfile
+              key={st.id}
+              student={st}
+              records={snapshot.records}
+              role={role}
+              open={open}
+              reload={() => void load()}
+              close={() => setStudentId('')}
+            />
           )}
         </SheetContent>
       </Sheet>

@@ -119,10 +119,58 @@ export function allocations(receipt: any) {
         ]
       : [];
 }
+export function packageTitle(pkg: any) {
+  const months: Record<number, string> = {
+    24: '3 months',
+    48: '6 months',
+    96: '1 year',
+    192: '2 years',
+    288: '3 years',
+  };
+  if (typeof pkg.sessions !== 'number')
+    return 'Package terms need confirmation';
+  return `${pkg.sessions} sessions${months[pkg.sessions] ? ` · ${months[pkg.sessions]}` : ' · custom package'}`;
+}
+export function sessionSnapshot(pkg: any, asOf: string) {
+  const snapshots = [
+    { date: pkg.sessionBaselineDate || CUTOFF, remaining: pkg.sourceRemaining },
+    ...(Array.isArray(pkg.sessionSnapshots) ? pkg.sessionSnapshots : []),
+  ];
+  return snapshots
+    .reverse()
+    .filter((s) => s.date <= asOf)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+}
+export function studentDependencies(records: DataRecord[], id: string) {
+  return records.filter(
+    (r) =>
+      r.id !== id &&
+      (r.studentId === id ||
+        r.payload.studentId === id ||
+        r.payload.canonicalStudentId === id ||
+        (Array.isArray(r.payload.allocations) &&
+          r.payload.allocations.some((a: any) => a.studentId === id))),
+  );
+}
+export function studentDeletionBlockers(records: DataRecord[], id: string) {
+  return studentDependencies(records, id).filter(
+    (r) =>
+      !(
+        r.kind === 'membership' &&
+        r.id.startsWith('membership:') &&
+        !r.payload.source &&
+        !r.payload.sourceRow &&
+        !records.some((x) => x.payload.membershipId === r.id)
+      ),
+  );
+}
 export function packagePaid(pkg: any, receipts: any[], asOf: string) {
+  const baselineDate = pkg.paymentBaselineDate || CUTOFF;
   const baseline = pkg.imported
-    ? asOf >= CUTOFF
-      ? Number(pkg.sourcePaid ?? 0)
+    ? asOf >= baselineDate
+      ? typeof pkg.sourcePaid === 'number'
+        ? pkg.sourcePaid
+        : null
       : null
     : 0;
   if (baseline === null) return null;
@@ -133,7 +181,7 @@ export function packagePaid(pkg: any, receipts: any[], asOf: string) {
         (r) =>
           r.date &&
           r.date <= asOf &&
-          (!pkg.imported || (!r.imported && r.date > CUTOFF)),
+          (!pkg.imported || (!r.imported && r.date > baselineDate)),
       )
       .reduce(
         (s, r) =>
@@ -157,8 +205,8 @@ export function getPackageBalances(records: DataRecord[], asOf: string) {
     pkgs.map((p) => [
       p.id,
       p.imported
-        ? asOf >= CUTOFF && typeof p.sourceRemaining === 'number'
-          ? p.sourceRemaining
+        ? typeof sessionSnapshot(p, asOf)?.remaining === 'number'
+          ? sessionSnapshot(p, asOf).remaining
           : null
         : p.sessions,
     ]),
@@ -200,6 +248,11 @@ export function getPackageBalances(records: DataRecord[], asOf: string) {
     (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
   );
   const overrun = new Map<string, number>();
+  for (const p of pkgs) {
+    const opening = remaining.get(p.id);
+    if (typeof opening === 'number' && opening < 0)
+      overrun.set(p.studentId, (overrun.get(p.studentId) || 0) - opening);
+  }
   for (const e of events) {
     const candidates = pkgs.filter(
       (p) =>
@@ -207,6 +260,8 @@ export function getPackageBalances(records: DataRecord[], asOf: string) {
         (!p.startDate || p.startDate <= e.date) &&
         (p.scope !== 'class' || p.classId === e.classId),
     );
+    // Imported marks are excluded above. A later snapshot on an exhausted
+    // package does not prove that a new renewal's event is already covered.
     const pkg = candidates.find((p) => Number(remaining.get(p.id) ?? 0) > 0);
     if (pkg) remaining.set(pkg.id, Number(remaining.get(pkg.id)) - 1);
     else overrun.set(e.studentId, (overrun.get(e.studentId) ?? 0) + 1);
@@ -247,6 +302,10 @@ export function studentReview(records: DataRecord[], asOf: string) {
     allPackages = entries(records, 'package');
   const { pkgs, remaining, overrun } = getPackageBalances(records, asOf);
   const forecastEnd = addDays(asOf, 730);
+  const attendanceById = new Map(
+    entries(records, 'attendance').map((a) => [a.id, a]),
+  );
+  const makeups = entries(records, 'makeup');
   return students.map((st) => {
     const ps = pkgs.filter((p) => p.studentId === st.id);
     const vals = ps.map((p) => remaining.get(p.id));
@@ -286,6 +345,7 @@ export function studentReview(records: DataRecord[], asOf: string) {
         'Free',
         'Ends without renewal',
         'Roster only',
+        'Transferred',
       ].includes(st.status) && !(st.status === 'Paused' && !st.resumeDate);
     const ms = memberships.filter(
       (m) =>
@@ -318,10 +378,7 @@ export function studentReview(records: DataRecord[], asOf: string) {
           )
           .map((d) => ({ date: d, classId: m.classId })),
       );
-      const attendanceById = new Map(
-        entries(records, 'attendance').map((a) => [a.id, a]),
-      );
-      const planned = entries(records, 'makeup')
+      const planned = makeups
         .filter(
           (m) =>
             !m.historical &&
@@ -360,14 +417,8 @@ export function studentReview(records: DataRecord[], asOf: string) {
         }
     }
     const sourcePending = ps.some((p) => p.sourcePending);
-    const status = [
-      'Stopped',
-      'Paused',
-      'Free',
-      'Ends without renewal',
-    ].includes(st.status)
-      ? st.status
-      : overdue > 0
+    const paymentStatus =
+      overdue > 0
         ? 'Overdue'
         : due > 0
           ? financial.some((p) => p.paid > 0 && p.balance > 0)
@@ -375,18 +426,49 @@ export function studentReview(records: DataRecord[], asOf: string) {
             : 'Payment expected'
           : sourcePending
             ? 'Source payment note'
-            : asOf < CUTOFF && ps.some((p) => p.imported)
+            : ps.some((p) => p.imported && !sessionSnapshot(p, asOf))
               ? 'Historical balance unavailable'
               : sessions === 0 && !future.length
                 ? 'Renewal needed'
-                : ps.length
-                  ? 'Covered'
-                  : 'No package recorded';
+                : financial.some((p) => p.balance === null) ||
+                    (ps.length > 0 && sessions === null)
+                  ? 'Needs confirmation'
+                  : ps.length
+                    ? 'Covered'
+                    : future.length
+                      ? future.some(
+                          (p) => p.sourcePending || p.sessions == null,
+                        )
+                        ? 'Needs confirmation'
+                        : 'Upcoming package'
+                      : 'No package recorded';
+    const status = [
+      'Stopped',
+      'Paused',
+      'Free',
+      'Ends without renewal',
+      'Archived',
+      'Transferred',
+    ].includes(st.status)
+      ? st.status
+      : paymentStatus;
     return {
       ...st,
+      enrollmentStatus: st.status,
+      paymentStatus,
       sessions,
       overrun: overrun.get(st.id) ?? 0,
       packages: financial,
+      displayPackages: [
+        ...financial,
+        ...future
+          .filter((p) => !financial.some((x) => x.id === p.id))
+          .map((p) => ({
+            ...p,
+            remaining: p.sessions,
+            paid: packagePaid(p, receipts, asOf),
+          })),
+      ],
       expectedDate,
       status,
       overdue,

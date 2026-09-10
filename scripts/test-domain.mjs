@@ -274,3 +274,173 @@ test('pre-cutoff imported debt is unknown, never invented as overdue', () => {
   assert.equal(student.packages[0].balance, null);
   assert.equal(student.status, 'Historical balance unavailable');
 });
+test('actual package labels distinguish advertised and custom session plans', () => {
+  assert.equal(d.packageTitle({ sessions: 48 }), '48 sessions · 6 months');
+  assert.equal(d.packageTitle({ sessions: 96 }), '96 sessions · 1 year');
+  assert.equal(d.packageTitle({ sessions: 192 }), '192 sessions · 2 years');
+  assert.equal(
+    d.packageTitle({ sessions: 12 }),
+    '12 sessions · custom package',
+  );
+  assert.match(d.packageTitle({ sessions: null }), /confirmation/);
+});
+test('session snapshots preserve history and accept same-date corrections', () => {
+  const p = {
+    imported: true,
+    sourceRemaining: 10,
+    sessionSnapshots: [
+      { date: '2026-09-08', remaining: 9 },
+      { date: '2026-09-09', remaining: 8 },
+      { date: '2026-09-12', remaining: 6 },
+    ],
+  };
+  assert.equal(d.sessionSnapshot(p, '2026-09-08').remaining, 9);
+  assert.equal(d.sessionSnapshot(p, '2026-09-10').remaining, 8);
+  assert.equal(d.sessionSnapshot(p, '2026-09-07'), undefined);
+});
+test('newer authoritative source marks are not charged twice and later lessons consume once', () => {
+  const records = base.map((x) =>
+    x.kind === 'package'
+      ? r('package', 'p', {
+          ...x.payload,
+          sourceRemaining: 1,
+          sessionBaselineDate: '2026-09-09',
+          sessionSnapshots: [
+            { date: '2026-09-08', remaining: 2 },
+            { date: '2026-09-09', remaining: 1 },
+          ],
+        })
+      : x,
+  );
+  records.push(
+    r('attendance', 'source-day', {
+      studentId: 's',
+      classId: 'c',
+      date: '2026-09-09',
+      mark: 'C',
+      historical: true,
+    }),
+  );
+  records.push(
+    r('attendance', 'new-day', {
+      studentId: 's',
+      classId: 'c',
+      date: '2026-09-10',
+      mark: 'P',
+    }),
+  );
+  assert.equal(
+    d.getPackageBalances(records, '2026-09-08').remaining.get('p'),
+    2,
+  );
+  assert.equal(
+    d.getPackageBalances(records, '2026-09-09').remaining.get('p'),
+    1,
+  );
+  assert.equal(
+    d.getPackageBalances(records, '2026-09-10').remaining.get('p'),
+    0,
+  );
+});
+test('exhausted source package cannot swallow a later renewal attendance event', () => {
+  const records = base.map((x) =>
+    x.kind === 'package'
+      ? r('package', 'p', {
+          ...x.payload,
+          sourceRemaining: 0,
+          sessionBaselineDate: '2026-09-12',
+        })
+      : x,
+  );
+  records.push(
+    r('package', 'new-p', {
+      studentId: 's',
+      classId: 'c',
+      scope: 'all',
+      sessions: 24,
+      startDate: '2026-09-09',
+      agreedFee: 600,
+    }),
+  );
+  records.push(
+    r('attendance', 'new-event', {
+      studentId: 's',
+      classId: 'c',
+      date: '2026-09-10',
+      mark: 'P',
+    }),
+  );
+  assert.equal(
+    d.getPackageBalances(records, '2026-09-12').remaining.get('new-p'),
+    23,
+  );
+});
+test('unknown package balances are never called covered', () => {
+  for (const field of ['sourceRemaining', 'sourcePaid']) {
+    const records = base.map((x) =>
+      x.kind === 'package'
+        ? r('package', 'p', { ...x.payload, [field]: null })
+        : x,
+    );
+    assert.equal(
+      d.studentReview(records, '2026-09-10')[0].paymentStatus,
+      'Needs confirmation',
+    );
+  }
+});
+test('negative source balance exposes overrun without inventing a monetary debt', () => {
+  const records = base.map((x) =>
+    x.kind === 'package'
+      ? r('package', 'p', { ...x.payload, sourceRemaining: -3 })
+      : x,
+  );
+  const student = d.studentReview(records, '2026-09-10')[0];
+  assert.equal(student.sessions, 0);
+  assert.equal(student.overrun, 3);
+  assert.equal(student.due, 0);
+});
+test('archiving suppresses future renewal follow-up, not historical package balances', () => {
+  const active = d.studentReview(base, '2026-09-10')[0];
+  const archived = d.studentReview(
+    base.map((x) =>
+      x.kind === 'student'
+        ? r('student', 's', { ...x.payload, status: 'Archived' })
+        : x,
+    ),
+    '2026-09-10',
+  )[0];
+  assert.equal(archived.sessions, active.sessions);
+  assert.equal(archived.due, active.due);
+  assert.equal(archived.expectedDate, null);
+  assert.equal(archived.enrollmentStatus, 'Archived');
+});
+test('deletion dependencies include financial allocations, aliases and used rosters', () => {
+  const empty = r('membership', 'membership:s:empty', {
+    studentId: 's',
+    classId: 'c',
+  });
+  assert.equal(d.studentDeletionBlockers([empty], 's').length, 0);
+  const fixtures = [
+    empty,
+    r('attendance', 'a', { membershipId: empty.id, studentId: 's' }),
+    r('receipt', 'r', { allocations: [{ studentId: 's', amount: 10 }] }),
+    r('student', 'alias', { canonicalStudentId: 's' }),
+  ];
+  assert.equal(d.studentDeletionBlockers(fixtures, 's').length, 4);
+});
+test('future-start imported package remains visible without inventing current coverage', () => {
+  const records = base.map((x) =>
+    x.kind === 'package'
+      ? r('package', 'p', {
+          ...x.payload,
+          startDate: '2026-09-11',
+          sessions: null,
+          sourcePending: true,
+        })
+      : x,
+  );
+  const s = d.studentReview(records, '2026-09-10')[0];
+  assert.equal(s.displayPackages.length, 1);
+  assert.equal(s.sessions, null);
+  assert.equal(s.paymentStatus, 'Needs confirmation');
+});

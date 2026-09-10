@@ -131,19 +131,29 @@ export async function snapshot(a: Actor) {
       manifest: a.role === 'TA' ? { cutoff: CUTOFF } : imported.manifest,
       loadedAt: new Date().toISOString(),
     };
-  const [data, members, activity, manifestText] = await Promise.all([
-    allRecords(),
-    a.role === 'Director' ? storeCall('list_staff') : [],
-    a.role === 'TA' ? [] : storeCall('list_activity'),
-    storeCall('get_setting', { key: 'import-manifest' }),
-  ]);
+  const [data, members, activity, manifestText, refreshText] =
+    await Promise.all([
+      allRecords(),
+      a.role === 'Director' ? storeCall('list_staff') : [],
+      a.role === 'TA' ? [] : storeCall('list_activity'),
+      storeCall('get_setting', { key: 'import-manifest' }),
+      storeCall('get_setting', { key: 'student-source-refresh' }),
+    ]);
   const manifest = manifestText ? JSON.parse(manifestText) : imported.manifest;
+  const sourceRefresh = refreshText ? JSON.parse(refreshText) : null;
   return {
     actor: a,
     records: allowedRecords(a, data),
     members,
     activity,
-    manifest: a.role === 'TA' ? { cutoff: CUTOFF } : manifest,
+    manifest:
+      a.role === 'TA'
+        ? { cutoff: sourceRefresh?.dataDate || CUTOFF }
+        : {
+            ...manifest,
+            cutoff: sourceRefresh?.dataDate || CUTOFF,
+            sourceRefresh,
+          },
     loadedAt: new Date().toISOString(),
     database: 'Supabase',
   };
@@ -206,6 +216,16 @@ const fields: Record<string, string[]> = {
     'resumeDate',
     'notes',
     'transferDate',
+    'preferredName',
+    'birthDate',
+    'enrollmentDate',
+    'school',
+    'parentEmail',
+    'secondParent',
+    'secondPhone',
+    'zalo',
+    'address',
+    'learningGoals',
   ],
   class: ['name', 'color', 'weekdays', 'archived'],
   membership: [
@@ -482,11 +502,35 @@ export async function saveRecord(a: Actor, input: any) {
         'Roster only',
         'Free',
         'Ends without renewal',
+        'Archived',
+        'Transferred',
       ].includes(p.status)
     )
       throw new AppError('Choose a student status.');
     p.parent = text(p.parent, 'parent', false, 200);
     p.phone = text(p.phone, 'phone', false, 50);
+    for (const key of ['preferredName', 'school', 'secondParent', 'zalo'])
+      p[key] = text(p[key], key, false, 200);
+    p.secondPhone = text(p.secondPhone, 'second phone', false, 50);
+    p.parentEmail = text(p.parentEmail, 'parent email', false, 200);
+    if (p.parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.parentEmail))
+      throw new AppError('Enter a valid parent email.');
+    p.address = text(p.address, 'address', false, 500);
+    p.learningGoals = text(p.learningGoals, 'learning goals', false, 1500);
+    p.birthDate = day(p.birthDate, 'date of birth');
+    if (p.birthDate && p.birthDate > today())
+      throw new AppError('Date of birth cannot be in the future.');
+    p.enrollmentDate = day(p.enrollmentDate, 'enrollment date');
+    if (
+      old?.payload.canonicalStudentId ||
+      (p.status !== old?.payload.status &&
+        [p.status, old?.payload.status].some((status) =>
+          ['Archived', 'Transferred'].includes(status),
+        ))
+    )
+      throw new AppError(
+        'Use the profile archive/restore controls or the linked current profile.',
+      );
     p.pauseFrom = day(p.pauseFrom, 'pause date');
     p.resumeDate = day(p.resumeDate, 'resume date');
     if (p.resumeDate && p.pauseFrom && p.resumeDate < p.pauseFrom)
@@ -521,10 +565,21 @@ export async function saveRecord(a: Actor, input: any) {
     )
       throw new AppError('The attendance row identity cannot change.');
     const member = await related(p.membershipId, 'membership');
+    const student = await related(p.studentId, 'student');
+    if (['Archived', 'Transferred'].includes(student.payload.status))
+      throw new AppError(
+        'Restore this student before recording new attendance.',
+      );
     if (member.studentId !== p.studentId || member.classId !== p.classId)
       throw new AppError('Student does not match this class row.');
     p.date = day(p.date, 'lesson date', true);
-    if (p.date <= CUTOFF)
+    const refreshed = await storeCall('get_setting', {
+      key: 'student-source-refresh',
+    });
+    const attendanceCutoff = refreshed
+      ? JSON.parse(refreshed).dataDate || CUTOFF
+      : CUTOFF;
+    if (p.date <= attendanceCutoff)
       throw new AppError(
         'Historical attendance is already imported. Use a new lesson date.',
       );
@@ -701,7 +756,9 @@ export async function saveRecord(a: Actor, input: any) {
     throw new AppError('Record is too long.');
   const rid = old?.id ?? id;
   const transferDate =
-    kind === 'student' && p.classId && (!old || p.classId !== old.classId)
+    kind === 'student' &&
+    p.classId &&
+    (!old || p.classId !== (old.classId || old.payload.classId))
       ? day(p.transferDate || today(), 'transfer date', true)
       : null;
   if (transferDate && transferDate <= CUTOFF)
@@ -731,6 +788,23 @@ export async function saveRecord(a: Actor, input: any) {
     leadId,
   });
   return decodeRecord(result);
+}
+export async function studentAction(a: Actor, input: any) {
+  requireRole(a, ['Director']);
+  if (!['archive', 'restore', 'delete'].includes(input.action))
+    throw new AppError('Choose archive, restore or delete.');
+  const id = text(input.id, 'student', true, 160);
+  const reason = text(input.reason, 'reason', true, 500);
+  if (!Number.isInteger(input.revision) || input.revision < 1)
+    throw new AppError('Refresh the student before continuing.');
+  return storeCall('student_action', {
+    id,
+    action: input.action,
+    expectedRevision: input.revision,
+    reason,
+    confirmation: text(input.confirmation, 'confirmation', false, 160),
+    actorId: a.userId,
+  });
 }
 export async function saveStaff(a: Actor, input: any) {
   requireRole(a, ['Director']);
