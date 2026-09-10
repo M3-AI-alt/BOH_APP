@@ -54,6 +54,9 @@ export default function StudentProfile({
   const payments = entries(records, 'receipt').filter(
     (r) => studentReceiptShare(r, s.id) !== null,
   );
+  const unknownBalance =
+    allPackages.length > 0 &&
+    !s.packages.some((p: any) => typeof p.balance === 'number');
   const attendance = entries(records, 'attendance')
     .filter((a) => a.studentId === s.id)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -139,8 +142,8 @@ export default function StudentProfile({
         <div>
           <span>Known package balance due</span>
           <strong>
-            {money(s.due)}
-            <small> VND</small>
+            {unknownBalance ? 'Not available' : money(s.due)}
+            {!unknownBalance && <small> VND</small>}
           </strong>
           {allPackages.some((p) => p.agreedFee == null || p.sourcePending) && (
             <small>Some source terms need confirmation</small>
