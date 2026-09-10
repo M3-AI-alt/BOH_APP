@@ -1,4 +1,26 @@
-# Hostinger deployment — preparation, not a completed migration
+# Hostinger deployment
+
+## Deployment status — 10 September 2026
+
+The first Hostinger release is live at **https://benoxfordhub.online**, built from
+commit `085bad6` through Hostinger's archive deployment API. The existing Sites
+deployment remains unchanged. Both deployments use the existing Supabase project;
+no student records were re-imported and no staff passwords or roles were changed.
+
+Verified on the live HTTPS address: English/Vietnamese login and assets, language
+switch persistence, same-origin form validation, cross-origin rejection, anonymous
+read/write restrictions, server database rejection of an unknown session, and
+secure logout cookie attributes. All 56 automated tests and type checking passed.
+Actual staff sign-in and authenticated business workflows still require a staff
+acceptance test; anonymous checks are not a substitute for that.
+
+The source is also on GitHub `main`. This first release was uploaded directly;
+GitHub-triggered automatic deployment was not enabled or verified by this API
+workflow. Complete/confirm the Node.js GitHub connection in hPanel for
+`M3-AI-alt/BOH_APP`, branch `main`, retaining the settings below. The public API
+can update those settings but cannot authorize the GitHub App connection.
+
+## Build targets
 
 BOH supports two separate build targets. The existing Sites/Cloudflare build
 remains the default. Hostinger must use the Node server target, not static Vite,
