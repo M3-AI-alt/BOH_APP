@@ -12,13 +12,14 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { Badge, ClassTag, DataTable } from './ui';
+import { Badge, ClassTag, DataTable, LessonClass } from './ui';
 import {
   allocations,
   entries,
   money,
   packageTitle,
   studentDeletionBlockers,
+  studentReceiptShare,
 } from '@/lib/domain';
 import type { DataRecord, Role } from '@/lib/types';
 
@@ -34,7 +35,7 @@ export default function StudentProfile({
   records: DataRecord[];
   role: Role;
   open: (kind: string, record?: any, defaults?: any) => void;
-  reload: () => void;
+  reload: () => Promise<void>;
   close: () => void;
 }) {
   const [action, setAction] = useState('');
@@ -44,26 +45,24 @@ export default function StudentProfile({
   const [error, setError] = useState('');
   const record = records.find((r) => r.kind === 'student' && r.id === s.id)!;
   const classes = entries(records, 'class');
-  const historyIds = new Set([
-    s.id,
-    ...entries(records, 'student')
-      .filter((x) => x.canonicalStudentId === s.id)
-      .map((x) => x.id),
-  ]);
-  const memberships = entries(records, 'membership').filter((m) =>
-    historyIds.has(m.studentId),
+  const memberships = entries(records, 'membership').filter(
+    (m) => m.studentId === s.id,
   );
   const allPackages = entries(records, 'package').filter(
     (p) => p.studentId === s.id,
   );
   const payments = entries(records, 'receipt').filter(
-    (r) =>
-      r.studentId === s.id ||
-      allocations(r).some((a: any) => a.studentId === s.id),
+    (r) => studentReceiptShare(r, s.id) !== null,
   );
   const attendance = entries(records, 'attendance')
-    .filter((a) => historyIds.has(a.studentId))
+    .filter((a) => a.studentId === s.id)
     .sort((a, b) => b.date.localeCompare(a.date));
+  const lessons = [
+    ...entries(records, 'makeup'),
+    ...entries(records, 'support'),
+  ]
+    .filter((r) => r.studentId === s.id)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const dependencies = studentDeletionBlockers(records, s.id);
   const imported = !!(
     record.payload.source ||
@@ -111,7 +110,7 @@ export default function StudentProfile({
       if (!r.ok)
         throw new Error(result.error || 'Could not update the student.');
       setAction('');
-      reload();
+      await reload();
       if (action === 'delete') close();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update student.');
@@ -191,6 +190,7 @@ export default function StudentProfile({
           <TabsTrigger value="packages">Packages</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="history">Class history</TabsTrigger>
+          <TabsTrigger value="lessons">Makeup & support</TabsTrigger>
         </TabsList>
         <TabsContent value="details">
           <dl className="profile-details">
@@ -225,7 +225,7 @@ export default function StudentProfile({
             </p>
           )}
           {allPackages.map((p) => {
-            const computed = s.packages.find((x: any) => x.id === p.id);
+            const computed = s.displayPackages.find((x: any) => x.id === p.id);
             return (
               <section className="detail-package" key={p.id}>
                 <div className="button-row">
@@ -294,30 +294,49 @@ export default function StudentProfile({
         </TabsContent>
         <TabsContent value="payments">
           <p className="profile-help">
-            Family receipts appear once here. Only the allocated share belongs
-            to this student.
+            All recorded dates. Student cash collected is separate from
+            allocation to a package. Family receipts include only this student's
+            confirmed share.
           </p>
           <DataTable
             headings={[
               'Date',
               'Receipt total (VND)',
-              'Allocated to student (VND)',
+              'Student share (VND)',
               'Purpose',
+              'Package match',
             ]}
             rows={payments
               .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
               .map((r) => [
                 r.date || 'Date not recorded',
                 money(r.amount),
-                allocations(r).length
-                  ? money(
-                      allocations(r)
-                        .filter((a: any) => a.studentId === s.id)
-                        .reduce((sum: number, a: any) => sum + a.amount, 0),
-                    )
-                  : 'Not allocated',
+                money(studentReceiptShare(r, s.id)),
                 r.purpose || 'Tuition',
+                allocations(r).some((a: any) => a.studentId === s.id)
+                  ? 'Package linked'
+                  : 'Student identified · package not matched',
               ])}
+          />
+        </TabsContent>
+        <TabsContent value="lessons">
+          <p className="profile-help">
+            The same linked records shown in Attendance. Historical records do
+            not deduct sessions again; free support never uses package sessions.
+          </p>
+          <DataTable
+            headings={['Date', 'Type', 'Class', 'Details', 'Status']}
+            rows={lessons.map((r) => [
+              r.date || 'Not recorded',
+              r.kind === 'makeup' ? 'Makeup' : 'Free support',
+              <LessonClass lesson={r} classes={classes} />,
+              <div className="long-cell">
+                {r.notes || '—'}
+                {r.evaluation && <small>{r.evaluation}</small>}
+                <small>{r.source}</small>
+              </div>,
+              <Badge>{r.historical ? 'Original record' : r.status}</Badge>,
+            ])}
           />
         </TabsContent>
         <TabsContent value="history">

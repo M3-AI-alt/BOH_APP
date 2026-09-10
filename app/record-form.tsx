@@ -11,7 +11,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Choice, Picker } from './ui';
-import { entries, today, money } from '@/lib/domain';
+import {
+  entries,
+  today,
+  money,
+  resolveStudentId,
+  packageTitle,
+} from '@/lib/domain';
 import { priceList, type DataRecord } from '@/lib/types';
 import {
   AlertDialog,
@@ -435,13 +441,15 @@ export default function RecordForm({
   records,
   onClose,
   onSaved,
+  onRefresh,
 }: {
   kind: string;
   record?: any;
   defaults?: any;
   records: DataRecord[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (record?: DataRecord) => Promise<void>;
+  onRefresh: () => Promise<boolean>;
 }) {
   const [data, setData] = useState<any>(() => ({
     date: today(),
@@ -477,13 +485,18 @@ export default function RecordForm({
     [error, setError] = useState(''),
     [reason, setReason] = useState('');
   const initial = useRef(JSON.stringify(data));
+  const [revision, setRevision] = useState(record?.revision);
+  const [conflict, setConflict] = useState(false);
   const [discard, setDiscard] = useState(false);
   function requestClose() {
     if (busy) return;
     if (JSON.stringify(data) !== initial.current || reason) setDiscard(true);
     else onClose();
   }
-  const students = entries(records, 'student'),
+  const students = entries(records, 'student').filter(
+      (s) =>
+        resolveStudentId(records, s.id) === s.id || s.id === data.studentId,
+    ),
     classes = entries(records, 'class').filter((c) => !c.archived),
     packages = entries(records, 'package');
   const set = (key: string, v: any) =>
@@ -493,7 +506,17 @@ export default function RecordForm({
       ...(key === 'studentId'
         ? {
             packageId: '',
-            name: d.name || students.find((s) => s.id === v)?.name,
+            absenceId: '',
+            missedDate: '',
+            ...(kind === 'receipt' ? { allocations: [] } : {}),
+            ...(['makeup', 'support', 'package'].includes(kind)
+              ? { classId: students.find((s) => s.id === v)?.classId || '' }
+              : {}),
+            name:
+              !d.name ||
+              d.name === students.find((s) => s.id === d.studentId)?.name
+                ? students.find((s) => s.id === v)?.name || ''
+                : d.name,
           }
         : {}),
     }));
@@ -524,15 +547,21 @@ export default function RecordForm({
             : {
                 kind,
                 id: record?.id,
-                revision: record?.revision,
+                revision,
                 payload: p,
                 reason,
               },
         ),
       });
       const j: any = await r.json();
-      if (!r.ok) throw new Error(j.error ?? 'Unable to save.');
-      onSaved();
+      if (!r.ok) {
+        if (r.status === 409) {
+          setConflict(true);
+          await onRefresh();
+        }
+        throw new Error(j.error ?? 'Unable to save.');
+      }
+      await onSaved(kind === 'staff' ? undefined : j);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to save.');
@@ -542,6 +571,30 @@ export default function RecordForm({
   }
   function control(f: Field) {
     const v = data[f.key] ?? '';
+    if (
+      record &&
+      ((['package', 'membership', 'makeup'].includes(kind) &&
+        f.key === 'studentId') ||
+        (['membership', 'makeup'].includes(kind) && f.key === 'classId') ||
+        (kind === 'makeup' && f.key === 'absenceId'))
+    ) {
+      const label =
+        f.key === 'studentId'
+          ? entries(records, 'student').find(
+              (s) => s.id === resolveStudentId(records, v),
+            )?.name
+          : f.key === 'classId'
+            ? classes.find((c) => c.id === v)?.name
+            : data.missedDate;
+      return (
+        <input
+          id={'field-' + f.key}
+          value={label || v}
+          disabled
+          title="Historical identity stays fixed. Use a transfer or a new record."
+        />
+      );
+    }
     if (f.type === 'checkbox')
       return (
         <div className="checkbox-field">
@@ -592,14 +645,18 @@ export default function RecordForm({
           value={v}
           onChange={(v) => set(f.key, v)}
           options={packages
-            .filter((p) => !data.studentId || p.studentId === data.studentId)
+            .filter(
+              (p) =>
+                !data.studentId ||
+                p.studentId === resolveStudentId(records, data.studentId),
+            )
             .map((p) => ({
               id: p.id,
               label:
                 (students.find((s) => s.id === p.studentId)?.name ??
                   'Student') +
                 ' · ' +
-                p.label +
+                packageTitle(p) +
                 ' · ' +
                 (p.startDate ?? ''),
             }))}
@@ -608,7 +665,8 @@ export default function RecordForm({
     if (f.type === 'absence') {
       const abs = entries(records, 'attendance').filter(
         (a) =>
-          a.studentId === data.studentId && ['A', 'L', 'K'].includes(a.mark),
+          a.studentId === resolveStudentId(records, data.studentId) &&
+          ['A', 'L', 'K'].includes(a.mark),
       );
       return (
         <Picker
@@ -620,6 +678,7 @@ export default function RecordForm({
             setData((d: any) => ({
               ...d,
               absenceId: v,
+              studentId: a?.sourceStudentId || a?.studentId || d.studentId,
               classId: a?.classId,
               missedDate: a?.date,
             }));
@@ -959,6 +1018,42 @@ export default function RecordForm({
                 {error}
               </div>
             )}
+            {conflict && (
+              <div className="source-notice">
+                <p>
+                  Your draft is still here. Another person changed this record.
+                  Load the latest saved values to start again, or cancel and
+                  copy your draft first.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const latest = records.find((r) => r.id === record?.id);
+                    if (!latest) {
+                      setError(
+                        'This record is no longer available. Close this form and refresh.',
+                      );
+                      return;
+                    }
+                    if (latest.revision <= revision) {
+                      setError(
+                        'The latest version has not loaded yet. Your draft is preserved. Close this form and refresh before editing again.',
+                      );
+                      return;
+                    }
+                    setData({ ...latest.payload });
+                    setRevision(latest.revision);
+                    initial.current = JSON.stringify(latest.payload);
+                    setReason('');
+                    setConflict(false);
+                    setError('');
+                  }}
+                >
+                  Load latest saved values (replace draft)
+                </Button>
+              </div>
+            )}
             <DialogFooter>
               <Button
                 type="button"
@@ -968,7 +1063,11 @@ export default function RecordForm({
               >
                 Cancel
               </Button>
-              <Button type="submit" className="primary" disabled={busy}>
+              <Button
+                type="submit"
+                className="primary"
+                disabled={busy || conflict}
+              >
                 {busy
                   ? 'Saving…'
                   : 'Save ' + (kind === 'staff' ? 'access' : 'record')}

@@ -132,6 +132,30 @@ export function ClassTag({ cl }: { cl: any }) {
     </span>
   );
 }
+export function LessonClass({
+  lesson,
+  classes,
+}: {
+  lesson: any;
+  classes: any[];
+}) {
+  return (
+    <div className="long-cell">
+      {lesson.classId ? (
+        <ClassTag cl={classes.find((c) => c.id === lesson.classId)} />
+      ) : (
+        <span>{lesson.className || 'Home class not recorded'}</span>
+      )}
+      {lesson.makeupClassId && (
+        <small>
+          Makeup class:{' '}
+          {classes.find((c) => c.id === lesson.makeupClassId)?.name ||
+            lesson.makeupClass}
+        </small>
+      )}
+    </div>
+  );
+}
 export function SearchBox({
   value,
   onChange,

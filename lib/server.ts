@@ -376,6 +376,35 @@ async function related(id: any, kind: string) {
     throw new AppError('Select an existing ' + kind + '.');
   return r;
 }
+async function canonicalStudent(id: string) {
+  const seen = new Set<string>();
+  let record = await related(id, 'student');
+  while (record.payload.canonicalStudentId) {
+    if (seen.has(record.id))
+      throw new AppError('Student identity needs Director review.');
+    seen.add(record.id);
+    record = await related(record.payload.canonicalStudentId, 'student');
+  }
+  return record;
+}
+export async function linkStudentRecord(a: Actor, input: any) {
+  if (!a.active || a.role !== 'Director')
+    throw new AppError('Only the Director can match source lessons.', 403);
+  const id = text(input.id, 'source record', true, 200);
+  const studentId = text(input.studentId, 'student', true, 200);
+  const reason = text(input.reason, 'source evidence', true, 1000);
+  if (!Number.isSafeInteger(input.revision) || input.revision < 1)
+    throw new AppError('Refresh the source record first.');
+  return decodeRecord(
+    await storeCall('link_student_record', {
+      id,
+      studentId,
+      reason,
+      revision: input.revision,
+      actorId: a.userId,
+    }),
+  );
+}
 export async function saveRecord(a: Actor, input: any) {
   const kind = text(input.kind, 'record type', true);
   if (!validKinds.includes(kind))
@@ -405,7 +434,17 @@ export async function saveRecord(a: Actor, input: any) {
       'Original history is preserved. Add a new dated record instead.',
     );
   if (p.classId) await related(p.classId, 'class');
-  if (p.studentId) await related(p.studentId, 'student');
+  if (p.studentId) {
+    const student = await related(p.studentId, 'student');
+    if (
+      student.payload.canonicalStudentId &&
+      (!old || old.payload.studentId !== p.studentId) &&
+      ['package', 'membership', 'receipt', 'support'].includes(kind)
+    )
+      throw new AppError(
+        'Select the linked current student profile, not an old transfer identity.',
+      );
+  }
   let id = old?.id ?? crypto.randomUUID();
   if (['receipt', 'expense'].includes(kind)) {
     p.date = day(p.date, 'payment date', true);
@@ -438,7 +477,10 @@ export async function saveRecord(a: Actor, input: any) {
       for (const split of splits) {
         const pkg = await related(split.packageId, 'package');
         amount(split.amount, 'allocated amount', 1);
-        if (pkg.studentId !== split.studentId)
+        if (
+          (await canonicalStudent(pkg.studentId)).id !==
+          (await canonicalStudent(split.studentId)).id
+        )
           throw new AppError('Allocation student does not match package.');
         total += split.amount;
       }
@@ -449,7 +491,10 @@ export async function saveRecord(a: Actor, input: any) {
         p.studentId = '';
       } else if (p.packageId) {
         const pkg = await related(p.packageId, 'package');
-        if (pkg.studentId !== p.studentId)
+        if (
+          (await canonicalStudent(pkg.studentId)).id !==
+          (await canonicalStudent(p.studentId)).id
+        )
           throw new AppError('Select the package belonging to this student.');
       }
       p.allocations = splits;
@@ -547,6 +592,10 @@ export async function saveRecord(a: Actor, input: any) {
       throw new AppError('Choose a valid class colour.');
   }
   if (kind === 'membership') {
+    if (old && ['studentId', 'classId'].some((k) => p[k] !== old.payload[k]))
+      throw new AppError(
+        'A class row cannot be reassigned. Transfer the student or create a new membership.',
+      );
     await related(p.studentId, 'student');
     await related(p.classId, 'class');
     p.from = day(p.from, 'start date', !old);
@@ -607,6 +656,10 @@ export async function saveRecord(a: Actor, input: any) {
     }
   }
   if (kind === 'package') {
+    if (old && p.studentId !== old.payload.studentId)
+      throw new AppError(
+        'A purchased package cannot move to another student. Keep its payment history together.',
+      );
     p.agreedDate = old?.payload.agreedDate ?? today();
     await related(p.studentId, 'student');
     p.sessions = amount(p.sessions, 'sessions', 1);

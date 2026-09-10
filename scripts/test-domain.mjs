@@ -31,6 +31,181 @@ const r = (kind, id, payload) => ({
   revision: 1,
   updatedAt: '',
 });
+test('one canonical identity drives classes, packages, receipts and makeup without rewriting raw IDs', () => {
+  const data = [
+    r('student', 'current', {
+      name: 'Current Name',
+      classId: 'c',
+      status: 'Active',
+    }),
+    r('student', 'old', {
+      name: 'Old Name',
+      canonicalStudentId: 'current',
+      status: 'Transferred',
+    }),
+    r('class', 'c', { weekdays: [0, 3] }),
+    r('membership', 'member', {
+      studentId: 'old',
+      classId: 'c',
+      forecast: false,
+    }),
+    r('package', 'pack', {
+      studentId: 'old',
+      classId: 'c',
+      sessions: 24,
+      agreedFee: 100,
+      startDate: '2026-09-09',
+      scope: 'all',
+    }),
+    r('attendance', 'lesson', {
+      studentId: 'old',
+      classId: 'c',
+      date: '2026-09-10',
+      mark: 'P',
+    }),
+    r('receipt', 'cash', {
+      studentId: 'current',
+      packageId: 'pack',
+      amount: 100,
+      month: '2026-09',
+      date: '2026-09-10',
+    }),
+    r('support', 'support', {
+      studentId: 'old',
+      classId: 'c',
+      date: '2026-09-10',
+      historical: true,
+    }),
+  ];
+  const review = d.studentReview(data, '2026-09-10');
+  assert.equal(review.length, 1);
+  assert.equal(review[0].sessions, 23);
+  assert.equal(review[0].packages[0].paid, 100);
+  for (const kind of ['package', 'attendance', 'membership', 'support'])
+    assert.equal(d.entries(data, kind)[0].studentId, 'current');
+  assert.equal(data.find((x) => x.id === 'lesson').studentId, 'old');
+  assert.equal(d.entries(data, 'attendance')[0].sourceStudentId, 'old');
+  assert.equal(
+    d.linkedStudentNames(data, d.entries(data, 'support')[0]),
+    'Current Name',
+  );
+});
+test('alias chains resolve, missing targets and cycles stay separate, identical names never merge', () => {
+  const data = [
+    r('student', 'a', { name: 'Same', canonicalStudentId: 'b' }),
+    r('student', 'b', { name: 'Same', canonicalStudentId: 'c' }),
+    r('student', 'c', { name: 'Same' }),
+    r('student', 'd', { name: 'Same' }),
+  ];
+  assert.equal(d.resolveStudentId(data, 'a'), 'c');
+  assert.equal(d.resolveStudentId(data, 'd'), 'd');
+  assert.equal(d.resolveStudentId(data.slice(0, 2), 'a'), 'a');
+  const cycle = [
+    r('student', 'a', { canonicalStudentId: 'b' }),
+    r('student', 'b', { canonicalStudentId: 'a' }),
+  ];
+  assert.equal(d.resolveStudentId(cycle, 'a'), 'a');
+  assert.equal(d.resolveStudentId(cycle, 'b'), 'b');
+});
+test('receipt attribution separates direct cash, package matching and family shares; aliases count once', () => {
+  const data = [
+    r('student', 'a', {}),
+    r('student', 'old', { canonicalStudentId: 'a' }),
+    r('student', 'b', {}),
+    r('receipt', 'one', {
+      studentId: 'old',
+      date: '2026-09-10',
+      month: '2026-09',
+      amount: 100,
+    }),
+    r('receipt', 'family', {
+      studentId: 'a',
+      date: '2026-09-10',
+      month: '2026-09',
+      amount: 300,
+      allocations: [
+        { studentId: 'a', packageId: 'p', amount: 100 },
+        { studentId: 'b', packageId: 'q', amount: 200 },
+      ],
+    }),
+  ];
+  const cash = d.cashSummary(data, '2026-09', '2026-09-10');
+  assert.equal(cash.collected, 400);
+  assert.deepEqual(cash.payerIds, ['a', 'b']);
+  assert.equal(d.studentReceiptShare(cash.receipts[0], 'a'), 100);
+  assert.equal(d.studentReceiptShare(cash.receipts[1], 'a'), 100);
+  assert.equal(d.studentReceiptShare({ amount: 100 }, 'a'), null);
+});
+test('TA limited snapshot cannot expand identities into another class or financial records', () => {
+  const data = [
+    r('student', 'old', {
+      canonicalStudentId: 'current',
+      name: 'Old',
+      phone: 'private',
+    }),
+    r('student', 'current', { name: 'Current', phone: 'private' }),
+    r('membership', 'm', { studentId: 'old', classId: 'c' }),
+    r('package', 'p', { studentId: 'current', amount: 500 }),
+  ];
+  const allowed = d.allowedRecords(
+    { role: 'TA', active: true, classIds: ['c'] },
+    data,
+  );
+  assert.equal(d.resolveStudentId(allowed, 'old'), 'old');
+  assert.equal(
+    allowed.some((x) => x.id === 'current' || x.kind === 'package'),
+    false,
+  );
+  assert.equal(allowed.find((x) => x.id === 'old').payload.phone, undefined);
+});
+const { createRefreshQueue } = await import(
+  moduleUrl(readFileSync('lib/refresh-queue.ts', 'utf8'))
+);
+test('post-save refresh waits for a new complete snapshot and discards an older in-flight response', async () => {
+  const pending = [],
+    applied = [];
+  const q = createRefreshQueue({
+    read: () => new Promise((resolve) => pending.push(resolve)),
+    apply: (v) => applied.push(v),
+    error: (e) => {
+      throw e;
+    },
+    busy: () => {},
+  });
+  const first = q.refresh();
+  await Promise.resolve();
+  const afterSave = q.refresh();
+  pending.shift()({ revision: 1 });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(applied, []);
+  assert.equal(pending.length, 1);
+  pending.shift()({ revision: 2, membership: 'new', lead: 'Enrolled' });
+  assert.equal(await afterSave, true);
+  await first;
+  assert.deepEqual(applied, [
+    { revision: 2, membership: 'new', lead: 'Enrolled' },
+  ]);
+});
+test('refresh failure is explicit and retry recovers without repeating a mutation', async () => {
+  let failure = true,
+    errors = 0,
+    value = 0;
+  const q = createRefreshQueue({
+    read: async () => {
+      if (failure) throw Error('offline');
+      return 2;
+    },
+    apply: (v) => (value = v),
+    error: () => errors++,
+    busy: () => {},
+  });
+  assert.equal(await q.refresh(), false);
+  assert.equal(errors, 1);
+  failure = false;
+  assert.equal(await q.refresh(), true);
+  assert.equal(value, 2);
+});
 const base = [
   r('student', 's', { name: 'Test Student', status: 'Active', classId: 'c' }),
   r('class', 'c', { name: 'Test Class', weekdays: [0, 2], color: '#4269e1' }),

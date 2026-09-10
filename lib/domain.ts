@@ -1,4 +1,32 @@
 import { CUTOFF, type Actor, type DataRecord, type RecordKind } from './types';
+// One read model for every page. Only explicit, source-confirmed identity links
+// are followed. Raw records remain untouched for editing and the audit trail.
+const identityCache = new WeakMap<DataRecord[], Map<string, string>>();
+export function resolveStudentId(records: DataRecord[], id: string): string {
+  let index = identityCache.get(records);
+  if (!index) {
+    index = new Map();
+    const students = new Map(
+      records.filter((r) => r.kind === 'student').map((r) => [r.id, r]),
+    );
+    for (const key of students.keys()) {
+      const seen = new Set<string>();
+      let current = key;
+      while (students.get(current)?.payload.canonicalStudentId) {
+        seen.add(current);
+        const next = students.get(current)!.payload.canonicalStudentId;
+        if (seen.has(next) || !students.has(next)) {
+          current = key;
+          break;
+        }
+        current = next;
+      }
+      index.set(key, current);
+    }
+    identityCache.set(records, index);
+  }
+  return index.get(id) ?? id;
+}
 export function entries(records: DataRecord[], kind: RecordKind) {
   return records
     .filter((r) => r.kind === kind)
@@ -7,7 +35,63 @@ export function entries(records: DataRecord[], kind: RecordKind) {
       id: r.id,
       revision: r.revision,
       kind: r.kind,
+      ...(r.studentId || r.payload.studentId
+        ? {
+            sourceStudentId: r.studentId || r.payload.studentId,
+            studentId: resolveStudentId(
+              records,
+              r.studentId || r.payload.studentId,
+            ),
+          }
+        : {}),
+      ...(Array.isArray(r.payload.allocations)
+        ? {
+            allocations: r.payload.allocations.map((a: any) => ({
+              ...a,
+              studentId: resolveStudentId(records, a.studentId),
+            })),
+          }
+        : {}),
     }));
+}
+export function receiptStudentIds(receipt: any): string[] {
+  const split = allocations(receipt);
+  return [
+    ...new Set<string>(
+      split.length
+        ? split.map((a: any) => a.studentId).filter(Boolean)
+        : receipt.studentId
+          ? [receipt.studentId]
+          : [],
+    ),
+  ];
+}
+export function studentReceiptShare(
+  receipt: any,
+  studentId: string,
+): number | null {
+  const split = allocations(receipt);
+  if (split.length) {
+    const shares = split.filter((a: any) => a.studentId === studentId);
+    return shares.length
+      ? shares.reduce((sum: number, a: any) => sum + Number(a.amount || 0), 0)
+      : null;
+  }
+  return receipt.studentId === studentId && typeof receipt.amount === 'number'
+    ? receipt.amount
+    : null;
+}
+export function linkedStudentNames(records: DataRecord[], entry: any): string {
+  const ids = receiptStudentIds(entry);
+  return ids
+    .map(
+      (id) =>
+        records.find(
+          (r) => r.kind === 'student' && r.id === resolveStudentId(records, id),
+        )?.payload.name,
+    )
+    .filter(Boolean)
+    .join(' / ');
 }
 export function today() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -296,7 +380,9 @@ export function scheduledDates(
   return ds;
 }
 export function studentReview(records: DataRecord[], asOf: string) {
-  const students = entries(records, 'student'),
+  const students = entries(records, 'student').filter(
+      (s) => resolveStudentId(records, s.id) === s.id,
+    ),
     memberships = entries(records, 'membership'),
     receipts = entries(records, 'receipt'),
     allPackages = entries(records, 'package');
@@ -501,15 +587,7 @@ export function cashSummary(
       (n, r) => n + (typeof r.amount === 'number' ? r.amount : 0),
       0,
     );
-  const payerIds = new Set(
-    receipts.flatMap((r) =>
-      r.studentId
-        ? [r.studentId]
-        : allocations(r)
-            .map((a: any) => a.studentId)
-            .filter(Boolean),
-    ),
-  );
+  const payerIds = new Set(receipts.flatMap(receiptStudentIds));
   return {
     receipts,
     expenses,

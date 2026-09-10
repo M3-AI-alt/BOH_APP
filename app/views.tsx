@@ -31,6 +31,7 @@ import {
   Choice,
   Badge,
   ClassTag,
+  LessonClass,
   SearchBox,
   Empty,
   DataTable,
@@ -50,6 +51,8 @@ import {
   money,
   allocations,
   packageTitle,
+  studentReceiptShare,
+  linkedStudentNames,
 } from '@/lib/domain';
 import { CUTOFF, priceList, type DataRecord, type Snapshot } from '@/lib/types';
 export type ViewProps = {
@@ -60,7 +63,7 @@ export type ViewProps = {
   classFilter: string;
   setClassFilter: (id: string) => void;
   open: (kind: string, record?: any, defaults?: any) => void;
-  detail: (id: string) => void;
+  detail: (id: string, asOf?: string) => void;
   navigate: (view: string) => void;
   save: (kind: string, record: any, payload: any) => Promise<void>;
 };
@@ -336,7 +339,7 @@ export function Attendance(p: ViewProps) {
     try {
       await p.save('attendance', existing, {
         membershipId: m.id,
-        studentId: m.studentId,
+        studentId: m.sourceStudentId || m.studentId,
         classId: cl.id,
         date,
         mark: value,
@@ -510,6 +513,7 @@ export function Attendance(p: ViewProps) {
                             canEdit &&
                             d > (p.snapshot.manifest?.cutoff || CUTOFF) &&
                             !a?.historical &&
+                            m.sourceStudentId === m.studentId &&
                             !['Archived', 'Transferred'].includes(st?.status) &&
                             d <= today() &&
                             (!m.from || d >= m.from) &&
@@ -630,7 +634,13 @@ function LessonLog(
       (m) =>
         (all || m.classId === p.classId) &&
         cleanSearch(
-          (m.name ?? '') + ' ' + (m.notes ?? '') + ' ' + (m.teacher ?? ''),
+          linkedStudentNames(p.snapshot.records, m) +
+            ' ' +
+            (m.name ?? '') +
+            ' ' +
+            (m.notes ?? '') +
+            ' ' +
+            (m.teacher ?? ''),
         ).includes(cleanSearch(p.search)),
     )
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
@@ -671,23 +681,29 @@ function LessonLog(
           '',
         ]}
         rows={list.map((m) => [
-          <strong>
+          <button
+            className="name-link"
+            disabled={!m.studentId || p.snapshot.actor.role === 'TA'}
+            onClick={() => p.detail(m.studentId)}
+          >
             {students.find((s) => s.id === m.studentId)?.name ??
               m.name ??
               'Not entered in source'}
-          </strong>,
-          m.classId ? (
-            <ClassTag cl={classes.find((c) => c.id === m.classId)} />
-          ) : (
-            m.className || 'Not recorded'
-          ),
+          </button>,
+          <LessonClass lesson={m} classes={classes} />,
           m.date ?? 'Not recorded',
           m.teacher || '—',
           <div className="long-cell">
             {m.notes || m.original?.filter(Boolean).join(' · ') || '—'}
             {m.evaluation && <small>{m.evaluation}</small>}
           </div>,
-          <Badge>{m.historical ? 'Original record' : m.status}</Badge>,
+          <Badge>
+            {!m.studentId
+              ? 'Student match needed'
+              : m.historical
+                ? 'Original record'
+                : m.status}
+          </Badge>,
           !m.historical && p.snapshot.actor.role !== 'Finance' ? (
             <Button
               variant="ghost"
@@ -699,6 +715,18 @@ function LessonLog(
               }
             >
               Edit
+            </Button>
+          ) : !m.studentId && p.snapshot.actor.role === 'Director' ? (
+            <Button
+              variant="outline"
+              onClick={() =>
+                p.open(
+                  'student-link',
+                  p.snapshot.records.find((r) => r.id === m.id),
+                )
+              }
+            >
+              Match student
             </Button>
           ) : null,
         ])}
@@ -1044,7 +1072,11 @@ export function Packages(p: ViewProps) {
     [p.snapshot.records, p.reviewDate],
   );
   const flat = review.flatMap((s) =>
-    s.packages.map((pkg: any) => ({ ...pkg, name: s.name })),
+    s.displayPackages.map((pkg: any) => ({
+      ...pkg,
+      name: s.name,
+      homeClassId: s.classId,
+    })),
   );
   const classes = entries(p.snapshot.records, 'class');
   return (
@@ -1079,7 +1111,7 @@ export function Packages(p: ViewProps) {
           rows={flat
             .filter(
               (x) =>
-                (!p.classFilter || x.classId === p.classFilter) &&
+                (!p.classFilter || x.homeClassId === p.classFilter) &&
                 cleanSearch(x.name).includes(cleanSearch(p.search)),
             )
             .map((x) => [
@@ -1088,9 +1120,11 @@ export function Packages(p: ViewProps) {
                 onClick={() => p.detail(x.studentId)}
               >
                 {x.name}
-                <small>{classes.find((c) => c.id === x.classId)?.name}</small>
+                <small>
+                  {classes.find((c) => c.id === x.homeClassId)?.name}
+                </small>
               </button>,
-              x.label,
+              packageTitle(x),
               x.startDate ?? '—',
               money(x.agreedFee),
               money(x.paid),
@@ -1131,20 +1165,20 @@ export function Finance(p: ViewProps) {
   const close = entries(records, 'close').find((c) => c.month === p.month);
   const filter = (x: any) =>
     cleanSearch(
-      [x.name, x.description, x.account, x.category].join(' '),
+      [
+        linkedStudentNames(records, x),
+        x.name,
+        x.description,
+        x.account,
+        x.category,
+      ].join(' '),
     ).includes(cleanSearch(p.search));
   const rec = summary.receipts.filter(filter),
     exp = summary.expenses.filter(filter);
   const classes = entries(records, 'class');
   function paidFor(studentId: string, list: any[]) {
     return list.reduce(
-      (n, r) =>
-        n +
-        (r.studentId === studentId
-          ? Number(r.amount || 0)
-          : allocations(r)
-              .filter((a: any) => a.studentId === studentId)
-              .reduce((s: number, a: any) => s + Number(a.amount || 0), 0)),
+      (n, r) => n + (studentReceiptShare(r, studentId) ?? 0),
       0,
     );
   }
@@ -1278,11 +1312,18 @@ export function Finance(p: ViewProps) {
               rows={rec.map((r) => [
                 r.date ?? 'Not recorded',
                 <div className="long-cell">
-                  <strong>{r.name}</strong>
-                  {r.studentId && (
-                    <small>
-                      {students.find((s) => s.id === r.studentId)?.name}
-                    </small>
+                  {r.studentId ? (
+                    <button
+                      className="name-link"
+                      onClick={() => p.detail(r.studentId, cutoff)}
+                    >
+                      {linkedStudentNames(records, r)}
+                    </button>
+                  ) : (
+                    <strong>{linkedStudentNames(records, r) || r.name}</strong>
+                  )}
+                  {linkedStudentNames(records, r) && (
+                    <small>Receipt payer: {r.name}</small>
                   )}
                 </div>,
                 r.purpose,
@@ -1387,7 +1428,10 @@ export function Finance(p: ViewProps) {
                     cleanSearch(s.name).includes(cleanSearch(p.search)),
                 )
                 .map((s) => [
-                  <button className="name-link" onClick={() => p.detail(s.id)}>
+                  <button
+                    className="name-link"
+                    onClick={() => p.detail(s.id, cutoff)}
+                  >
                     {s.name}
                   </button>,
                   <ClassTag cl={classes.find((c) => c.id === s.classId)} />,
@@ -1704,6 +1748,24 @@ export function Team(p: ViewProps) {
   );
 }
 export function SourceRecords(p: ViewProps) {
+  const [linkKind, setLinkKind] = useState('all');
+  const unlinked = (['receipt', 'makeup', 'support'] as const)
+    .flatMap((kind) => entries(p.snapshot.records, kind))
+    .filter(
+      (r) =>
+        !r.studentId &&
+        !r.allocations?.length &&
+        (r.kind !== 'receipt' ||
+          r.purpose === 'Tuition' ||
+          r.purpose === 'Deposit'),
+    );
+  const reviewLinks = unlinked.filter(
+    (r) =>
+      (linkKind === 'all' || r.kind === linkKind) &&
+      cleanSearch([r.name, r.source, r.className, r.notes].join(' ')).includes(
+        cleanSearch(p.search),
+      ),
+  );
   const [query, setQuery] = useState('Check học phí ver2'),
     [rows, setRows] = useState<DataRecord[]>([]),
     [busy, setBusy] = useState(false),
@@ -1730,11 +1792,72 @@ export function SourceRecords(p: ViewProps) {
           <strong>Your original records are preserved</strong>
           <p>
             Student balances use the original “Check học phí ver2” values. New
-            attendance starts after 8 September. Source rows below are
-            read-only.
+            attendance starts after{' '}
+            {p.snapshot.manifest.sourceRefresh?.dataDate || CUTOFF}. Source rows
+            below are read-only.
           </p>
         </div>
       </div>
+      <Panel
+        title="Records needing a student match"
+        subtitle={`${unlinked.length} existing records are not yet attached to a confirmed student. Tuition cash stays counted once. Other income is excluded from this list.`}
+        action={
+          <Choice
+            label="Record type"
+            value={linkKind}
+            onChange={setLinkKind}
+            options={[
+              { value: 'all', label: 'All unmatched' },
+              { value: 'receipt', label: 'Tuition receipts' },
+              { value: 'makeup', label: 'Makeup lessons' },
+              { value: 'support', label: 'Free support' },
+            ]}
+          />
+        }
+      >
+        <DataTable
+          headings={['Type', 'Original name', 'Date', 'Source', '']}
+          rows={reviewLinks.map((r) => [
+            <Badge>
+              {r.kind === 'receipt'
+                ? 'Tuition receipt'
+                : r.kind === 'makeup'
+                  ? 'Makeup'
+                  : 'Free support'}
+            </Badge>,
+            r.name || 'Not recorded',
+            r.date || 'Not recorded',
+            r.source,
+            r.kind === 'receipt' ? (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  p.open(
+                    'receipt',
+                    p.snapshot.records.find((x) => x.id === r.id),
+                  )
+                }
+              >
+                Details / match
+              </Button>
+            ) : p.snapshot.actor.role === 'Director' ? (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  p.open(
+                    'student-link',
+                    p.snapshot.records.find((x) => x.id === r.id),
+                  )
+                }
+              >
+                Match student
+              </Button>
+            ) : (
+              'Director review'
+            ),
+          ])}
+        />
+      </Panel>
       <div className="section-toolbar">
         <SearchBox
           value={query}

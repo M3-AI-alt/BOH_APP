@@ -18,6 +18,8 @@ The monthly dashboard reports cash collected, cash paid and net cash—not accou
 - Supabase calls run only on the server. RLS is enabled; anonymous and authenticated Data API clients have no table or RPC grants. Only the server secret key may call the fixed, parameterized operations.
 - Roles are stored in `boh_staff`, not user-editable JWT metadata. TA responses exclude financial records, salaries, leads and parent contacts.
 - Writes use revision checks. Database changes, roster transfers and audit entries are committed together.
+- All pages use one canonical student read model. Explicit, source-confirmed transfer identities share packages, payments and lesson history; original IDs and source text remain unchanged. Similar names are never merged automatically.
+- A successful save waits for complete shared-state revalidation, including related memberships and leads. Older in-flight responses are discarded. Other tabs receive a data-free refresh signal; other devices refresh on focus or every minute while not editing a form.
 - Staff must have both private-site viewer access and an enabled app role. Never grant TAs site-editor access.
 
 **Hosting boundary:** the server trusts identity headers only because the private Sites gateway authenticates users and owns those headers. Do not expose this worker directly or deploy it on another host without replacing/verifying that identity boundary. Vercel or another host would require a separately configured authentication integration.
@@ -37,6 +39,14 @@ The configured Supabase project is `sineiqiyvhqfefjdbtvu`. Versioned SQL migrati
 Original workbooks and the private migration dataset are **not in this repository**. `.gitignore` excludes spreadsheets, private JSON, database copies and environment files. Production builds use an empty import placeholder and read actual records from Supabase. New clones therefore contain code, not student records.
 
 The owner-only initial importer can use a privately supplied `db/import.json`. `scripts/import-private.mjs` uploads it with stable IDs and does not overwrite an already completed import. Do not use it to synchronize edits from Google Sheets. New source versions need a reviewed comparison/import procedure, not replacement of existing IDs.
+
+### Student matching and historical source records
+
+Use **Original records → Records needing a student match** to see unlinked tuition receipts, makeups and free support. Other income is not treated as a missing student payment. Finance can match receipts and explicitly allocate family payments; only the Director can attach a historical lesson to a confirmed student, with an evidence note. Linking history never creates a second lesson or consumes sessions again. Linked makeup/support records also appear in the student profile.
+
+Student cash attribution and package allocation are distinct: a receipt identified to a student counts in that student's monthly cash, even if the package is not yet matched. Family receipts contribute only the confirmed allocation to each student. Profile balances opened from monthly finance use that month's review cutoff; the cutoff is shown in the profile header. Payment and lesson history lists explicitly show all recorded dates.
+
+`scripts/reconcile-lesson-source.mjs` is a read-only planner for recovering exact ISO dates and unambiguous class fields from preserved source rows. It requires a private current backup and reviewed linkage evidence file. Its output contains private data: keep it under ignored `private-data`, inspect the change set, back up first, then apply only guarded/audited changes. Do not forward-fill missing dates, infer date ranges, or overwrite a makeup's home class with its destination class.
 
 ## Finance safeguards and remaining operational setup
 

@@ -42,6 +42,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge, Choice, ClassTag, SearchBox, DataTable } from './ui';
 import RecordForm from './record-form';
 import StudentProfile from './student-profile';
+import StudentLinkForm from './student-link-form';
+import { createRefreshQueue } from '@/lib/refresh-queue';
 import {
   Overview,
   Attendance,
@@ -65,6 +67,7 @@ import {
   monthEnd,
   scheduledDates,
   addDays,
+  resolveStudentId,
 } from '@/lib/domain';
 import { CUTOFF, type Snapshot, type DataRecord } from '@/lib/types';
 const nav = [
@@ -98,74 +101,120 @@ export default function Workspace({ userName }: { userName: string }) {
     [classFilter, setClassFilter] = useState(''),
     [dialog, setDialog] = useState<any>(null),
     [studentId, setStudentId] = useState(''),
+    [profileDate, setProfileDate] = useState(''),
     [help, setHelp] = useState(false),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [progress, setProgress] = useState<number | null>(null),
     [saved, setSaved] = useState('');
-  const loading = useRef(false),
-    current = useRef<any>({});
-  const load = useCallback(async () => {
-    if (loading.current) return;
-    loading.current = true;
-    setBusy(true);
-    try {
-      let r = await fetch('/api/state', { cache: 'no-store' });
-      let j: any = await r.json();
-      if (!r.ok) throw new Error(j.error || 'Could not load the workspace.');
-      if (j.needsImport) {
-        if (j.actor.role !== 'Director')
-          throw new Error(
-            'The Director needs to finish the initial import before staff can enter records.',
+  const current = useRef<any>({});
+  const refreshQueue = useMemo(
+    () =>
+      createRefreshQueue<Snapshot>({
+        busy: setBusy,
+        read: async () => {
+          let r = await fetch('/api/state', { cache: 'no-store' });
+          let j: any = await r.json();
+          if (!r.ok)
+            throw new Error(j.error || 'Could not load the workspace.');
+          if (j.needsImport) {
+            if (j.actor.role !== 'Director')
+              throw new Error(
+                'The Director needs to finish the initial import before staff can enter records.',
+              );
+            let done = false;
+            while (!done) {
+              setProgress((v) => v ?? 0);
+              const ir = await fetch('/api/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+              });
+              const ij: any = await ir.json();
+              if (!ir.ok)
+                throw new Error(
+                  ij.error ||
+                    'Import paused. Retry to continue without duplicating records.',
+                );
+              setProgress(ij.progress);
+              done = ij.done;
+            }
+            r = await fetch('/api/state', { cache: 'no-store' });
+            j = await r.json();
+            if (!r.ok)
+              throw new Error(j.error || 'Could not load imported records.');
+          }
+          return j;
+        },
+        apply: (j) => {
+          setSnapshot(j);
+          setProgress(null);
+          setError('');
+          if (j.actor.role === 'TA') setView('Attendance');
+        },
+        error: (e) => {
+          setError(
+            e instanceof Error ? e.message : 'Could not load the workspace.',
           );
-        let done = false;
-        while (!done) {
-          setProgress((v) => v ?? 0);
-          const ir = await fetch('/api/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: '{}',
-          });
-          const ij: any = await ir.json();
-          if (!ir.ok)
-            throw new Error(
-              ij.error ||
-                'Import paused. Retry to continue without duplicating records.',
-            );
-          setProgress(ij.progress);
-          done = ij.done;
-        }
-        r = await fetch('/api/state', { cache: 'no-store' });
-        j = await r.json();
-        if (!r.ok)
-          throw new Error(j.error || 'Could not load imported records.');
-      }
-      setSnapshot(j);
-      setProgress(null);
-      setError('');
-      if (j.actor.role === 'TA') setView('Attendance');
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : 'Could not load the workspace.',
+        },
+      }),
+    [],
+  );
+  const load = useCallback(() => refreshQueue.refresh(), [refreshQueue]);
+  const afterSaved = useCallback(
+    async (record?: DataRecord) => {
+      if (record?.id && record.kind)
+        setSnapshot((s) =>
+          s
+            ? {
+                ...s,
+                records: [
+                  ...s.records.filter((r) => r.id !== record.id),
+                  (s.records.find((r) => r.id === record.id)?.revision ?? 0) >
+                  record.revision
+                    ? s.records.find((r) => r.id === record.id)!
+                    : record,
+                ],
+              }
+            : s,
+        );
+      const refreshed = await load();
+      setSaved(
+        new Date().toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
       );
-    } finally {
-      setBusy(false);
-      loading.current = false;
-    }
-  }, []);
+      if (!refreshed)
+        setError(
+          'Your change was saved. Refresh is needed to update all pages; do not enter the same record again.',
+        );
+      // Notify other open tabs without putting student or financial data in storage.
+      try {
+        window.localStorage.setItem('boh-records-changed', String(Date.now()));
+      } catch {
+        /* Other devices still refresh on focus / each minute. */
+      }
+    },
+    [load],
+  );
   useEffect(() => {
     void load();
   }, [load]);
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === 'visible' && !dialog && !loading.current)
-        void load();
+      if (document.visibilityState === 'visible' && !dialog) void load();
     };
     const timer = setInterval(refresh, 60000);
     window.addEventListener('focus', refresh);
+    const changed = (e: StorageEvent) => {
+      if (e.key === 'boh-records-changed') void load();
+    };
+    window.addEventListener('storage', changed);
     return () => {
       clearInterval(timer);
       window.removeEventListener('focus', refresh);
+      window.removeEventListener('storage', changed);
     };
   }, [load, dialog]);
   const navigate = useCallback((v: string) => {
@@ -178,35 +227,24 @@ export default function Workspace({ userName }: { userName: string }) {
       setDialog({ kind, record, defaults }),
     [],
   );
-  const save = useCallback(async (kind: string, record: any, payload: any) => {
-    const r = await fetch('/api/record', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        kind,
-        id: record?.id,
-        revision: record?.revision,
-        payload,
-      }),
-    });
-    const j: any = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Could not save.');
-    setSnapshot((s) =>
-      s
-        ? {
-            ...s,
-            records: [...s.records.filter((x) => x.id !== j.id), j],
-            loadedAt: new Date().toISOString(),
-          }
-        : s,
-    );
-    setSaved(
-      new Date().toLocaleTimeString('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    );
-  }, []);
+  const save = useCallback(
+    async (kind: string, record: any, payload: any) => {
+      const r = await fetch('/api/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind,
+          id: record?.id,
+          revision: record?.revision,
+          payload,
+        }),
+      });
+      const j: any = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Could not save.');
+      await afterSaved(j);
+    },
+    [afterSaved],
+  );
   current.current = { snapshot, month, view, navigate, setMonth };
   useEffect(() => {
     const context = (document as any).modelContext;
@@ -369,7 +407,10 @@ export default function Workspace({ userName }: { userName: string }) {
         classFilter,
         setClassFilter,
         open,
-        detail: setStudentId,
+        detail: (id, asOf) => {
+          setStudentId(resolveStudentId(snapshot.records, id));
+          setProfileDate(asOf || reviewDate);
+        },
         navigate,
         save,
       }
@@ -378,11 +419,11 @@ export default function Workspace({ userName }: { userName: string }) {
   const st = useMemo(
     () =>
       snapshot && studentId
-        ? studentReview(snapshot.records, reviewDate).find(
-            (s) => s.id === studentId,
+        ? studentReview(snapshot.records, profileDate || reviewDate).find(
+            (s) => s.id === resolveStudentId(snapshot.records, studentId),
           )
         : null,
-    [snapshot, studentId, reviewDate],
+    [snapshot, studentId, reviewDate, profileDate],
   );
   return (
     <SidebarProvider>
@@ -624,21 +665,22 @@ export default function Workspace({ userName }: { userName: string }) {
           )}
         </div>
       </main>
-      {dialog && snapshot && (
+      {dialog?.kind === 'student-link' && snapshot && (
+        <StudentLinkForm
+          record={dialog.record}
+          records={snapshot.records}
+          onClose={() => setDialog(null)}
+          onSaved={afterSaved}
+        />
+      )}
+      {dialog && dialog.kind !== 'student-link' && snapshot && (
         <RecordForm
           key={dialog.kind + ':' + (dialog.record?.id ?? 'new')}
           {...dialog}
           records={snapshot.records}
           onClose={() => setDialog(null)}
-          onSaved={() => {
-            setSaved(
-              new Date().toLocaleTimeString('en-GB', {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-            );
-            void load();
-          }}
+          onSaved={afterSaved}
+          onRefresh={load}
         />
       )}
       <Sheet open={!!studentId} onOpenChange={(o) => !o && setStudentId('')}>
@@ -646,7 +688,7 @@ export default function Workspace({ userName }: { userName: string }) {
           <SheetHeader>
             <SheetTitle>{st?.name ?? 'Student'}</SheetTitle>
             <SheetDescription>
-              Student profile and package history
+              One student record · balances as at {profileDate || reviewDate}
             </SheetDescription>
           </SheetHeader>
           {st && snapshot && (
@@ -656,7 +698,7 @@ export default function Workspace({ userName }: { userName: string }) {
               records={snapshot.records}
               role={role}
               open={open}
-              reload={() => void load()}
+              reload={() => afterSaved()}
               close={() => setStudentId('')}
             />
           )}

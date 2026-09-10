@@ -21,7 +21,7 @@ const domain = moduleUrl(
 const storage = moduleUrl(
   `export class StorageError extends Error{};export const findRecord=async id=>globalThis.__serverQA.records.find(r=>r.id===id)||null;export const listRecords=async()=>globalThis.__serverQA.records;export const decodeRecord=r=>r;export const storeCall=async(op,args)=>{globalThis.__serverQA.calls.push({op,args});if(op==='commit_record')return {...args.record,revision:2};if(op==='get_setting')return JSON.stringify({dataDate:'2026-09-09'});return {ok:true};};`,
 );
-let code = fs
+const code = fs
   .readFileSync('lib/server.ts', 'utf8')
   .replaceAll("from './types'", `from '${types}'`)
   .replaceAll("from './domain'", `from '${domain}'`)
@@ -72,6 +72,59 @@ const setup = () =>
     ],
     calls: [],
   });
+test('existing package ownership and class membership identity cannot be reassigned', async () => {
+  for (const kind of ['package', 'membership']) {
+    const state = setup();
+    const old = {
+      id: 'record',
+      kind,
+      studentId: st.id,
+      classId: 'c1',
+      date: '',
+      revision: 1,
+      payload: { studentId: st.id, classId: 'c1' },
+    };
+    state.records.push(old, { ...st, id: 'other' });
+    await assert.rejects(
+      server.saveRecord(actor, {
+        kind,
+        id: 'record',
+        revision: 1,
+        payload: { studentId: 'other' },
+      }),
+      /cannot|reassigned/,
+    );
+    assert.equal(state.calls.length, 0);
+  }
+});
+test('source lesson linking is Director-only and forwards only bounded identifiers', async () => {
+  setup();
+  for (const role of ['Finance', 'TA'])
+    await assert.rejects(
+      server.linkStudentRecord(
+        { ...actor, role },
+        {
+          id: 'source',
+          studentId: st.id,
+          revision: 1,
+          reason: 'Verified roster',
+        },
+      ),
+      (e) => e.status === 403,
+    );
+  await server.linkStudentRecord(actor, {
+    id: 'source',
+    studentId: st.id,
+    revision: 1,
+    reason: 'Verified roster',
+    amount: 999,
+    actorId: 'forged',
+  });
+  const call = globalThis.__serverQA.calls.at(-1);
+  assert.equal(call.op, 'link_student_record');
+  assert.equal(call.args.actorId, actor.userId);
+  assert.equal(call.args.amount, undefined);
+});
 test('profile saves added contact/learning fields, preserves source and does not create false transfer', async () => {
   setup();
   const result = await server.saveRecord(actor, {

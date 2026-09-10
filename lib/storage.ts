@@ -22,7 +22,9 @@ export async function storeCall(
       503,
     );
   const response = await fetch(
-    url.replace(/\/$/, '') + '/rest/v1/rpc/boh_store',
+    url.replace(/\/$/, '') +
+      '/rest/v1/rpc/' +
+      (operation === 'link_student_record' ? 'boh_student_link' : 'boh_store'),
     {
       method: 'POST',
       headers: {
@@ -30,7 +32,9 @@ export async function storeCall(
         'Content-Type': 'application/json',
         ...(key.startsWith('eyJ') ? { Authorization: 'Bearer ' + key } : {}),
       },
-      body: JSON.stringify({ operation, args }),
+      body: JSON.stringify(
+        operation === 'link_student_record' ? { args } : { operation, args },
+      ),
       signal: AbortSignal.timeout(20000),
       cache: 'no-store',
     },
