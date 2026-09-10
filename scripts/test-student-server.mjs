@@ -28,8 +28,8 @@ const code = fs
   .replaceAll("from './storage'", `from '${storage}'`)
   .replace("import { env } from 'cloudflare:workers';", 'const env={};')
   .replace(
-    "import { getChatGPTUser } from '@/app/chatgpt-auth';",
-    'const getChatGPTUser=async()=>null;',
+    "import { AuthError, passwordActor } from './password-auth';",
+    'class AuthError extends Error{}; const passwordActor=async()=>globalThis.__serverQA.actor;',
   )
   .replace(
     "import imported from '@boh/private-import';",
@@ -72,6 +72,50 @@ const setup = () =>
     ],
     calls: [],
   });
+test('TA support must belong to the assigned class on create and edit', async () => {
+  const ta = { ...actor, role: 'TA', classIds: ['c1'] };
+  const payload = {
+    studentId: st.id,
+    classId: 'c1',
+    date: '2026-09-09',
+    notes: 'Reading practice',
+    status: 'Completed',
+  };
+  let state = setup();
+  await assert.rejects(
+    server.saveRecord(ta, { kind: 'support', payload }),
+    (e) => e.status === 403,
+  );
+  assert.equal(state.calls.length, 0);
+  state.records.push({
+    id: 'm',
+    kind: 'membership',
+    studentId: st.id,
+    classId: 'c1',
+    payload: { studentId: st.id, classId: 'c1' },
+  });
+  await server.saveRecord(ta, { kind: 'support', payload });
+  assert.equal(state.calls.at(-1).op, 'commit_record');
+  state = setup();
+  state.records.push({
+    id: 'old-support',
+    kind: 'support',
+    classId: 'c1',
+    studentId: st.id,
+    revision: 1,
+    payload,
+  });
+  await assert.rejects(
+    server.saveRecord(ta, {
+      kind: 'support',
+      id: 'old-support',
+      revision: 1,
+      payload,
+    }),
+    (e) => e.status === 403,
+  );
+  assert.equal(state.calls.length, 0);
+});
 test('source version filtering happens before the result limit and source data is denied to TAs', async () => {
   const state = setup();
   state.sourceRows = Array.from({ length: 905 }, (_, i) => ({

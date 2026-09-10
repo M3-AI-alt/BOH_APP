@@ -24,7 +24,11 @@ export async function storeCall(
   const response = await fetch(
     url.replace(/\/$/, '') +
       '/rest/v1/rpc/' +
-      (operation === 'link_student_record' ? 'boh_student_link' : 'boh_store'),
+      (operation === 'link_student_record'
+        ? 'boh_student_link'
+        : operation.startsWith('auth_')
+          ? 'boh_auth'
+          : 'boh_store'),
     {
       method: 'POST',
       headers: {

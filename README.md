@@ -14,7 +14,9 @@ The monthly dashboard reports cash collected, cash paid and net cash—not accou
 
 - React / Vinext interface, server routes and private Sites hosting.
 - Supabase Postgres is the authoritative shared database. Records are not stored in browser storage. Screens refresh every minute and on focus; attendance saves immediately.
-- Sign-in uses the hosting platform's ChatGPT sign-in. This is not Microsoft 365 or Supabase Auth sign-in.
+- Individual email/password credentials are verified by Supabase Auth on the server. There is no public role selection or automatic staff enrolment. Temporary passwords require replacement before any business API is accessible.
+- The browser receives only an opaque, HttpOnly, Secure, same-site session cookie. The database stores its SHA-256 hash, expires setup sessions after 20 minutes and normal sessions after 8 hours, and rechecks the active staff role on every request. Role/class changes revoke sessions. Password updates increment a credential version, revoke old sessions, and fail closed if the provider update cannot finish.
+- A private-schema helper checks Auth bans, deleted users and password-version fingerprints, so externally changed credentials invalidate BOH sessions too. Provider tokens and privileged keys never reach browser code. Accounts are matched by immutable Auth user ID, not editable metadata.
 - Supabase calls run only on the server. RLS is enabled; anonymous and authenticated Data API clients have no table or RPC grants. Only the server secret key may call the fixed, parameterized operations.
 - Roles are stored in `boh_staff`, not user-editable JWT metadata. TA responses exclude financial records, salaries, leads and parent contacts.
 - Writes use revision checks. Database changes, roster transfers and audit entries are committed together.
@@ -22,7 +24,7 @@ The monthly dashboard reports cash collected, cash paid and net cash—not accou
 - A successful save waits for complete shared-state revalidation, including related memberships and leads. Older in-flight responses are discarded. Other tabs receive a data-free refresh signal; other devices refresh on focus or every minute while not editing a form.
 - Staff must have both private-site viewer access and an enabled app role. Never grant TAs site-editor access.
 
-**Hosting boundary:** the server trusts identity headers only because the private Sites gateway authenticates users and owns those headers. Do not expose this worker directly or deploy it on another host without replacing/verifying that identity boundary. Vercel or another host would require a separately configured authentication integration.
+**Hosting boundary:** business routes accept only the native BOH session, never gateway identity headers or a development owner fallback. The existing private Sites audience must not be changed without owner approval. A public login shell can be enabled after approval; it does not grant access to student or financial records. Server-only secrets must remain configured when deploying on another host.
 
 ## Local development
 
@@ -53,7 +55,7 @@ Student cash attribution and package allocation are distinct: a receipt identifi
 - Verify source text amounts, allocate combined-family receipts, and reconcile to bank/cash statements before closing a month.
 - Payroll is a review schedule. Tax/insurance values are accountant-approved inputs, not a statutory tax engine. Salary figures without payment dates are not automatically posted as cash expenses.
 - A provided Google workbook still requires authenticated access. Its unread content has not been claimed as imported. Other accessible sources are retained as read-only records.
-- Before staff rollout: confirm staff sign-in emails, roles and assigned classes; grant private-site viewer access; perform a real TA and Finance sign-in acceptance check.
+- Before staff rollout: confirm assigned classes, deliver each temporary password privately, approve the login-page audience and have each person complete first sign-in. Password provisioning/recovery is an administrator operation; adding a role row alone does not create credentials. A password change interrupted between Auth and Postgres remains locked pending administrator recovery.
 - Configure and test backups and restoration in the Supabase project before relying on the app as the only copy of centre records. Keep the original workbooks archived.
 
 Do not commit secret keys, payroll records, student data, production exports or database backups to this public repository.

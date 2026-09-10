@@ -757,6 +757,7 @@ export default function RecordForm({
       <input
         id={'field-' + f.key}
         type={f.type ?? 'text'}
+        disabled={kind === 'staff' && !!record && f.key === 'email'}
         value={v}
         onChange={(e) =>
           set(
@@ -784,7 +785,7 @@ export default function RecordForm({
               {kind === 'package'
                 ? 'Create a new record for each renewal. The agreed fee is the actual discounted amount.'
                 : kind === 'staff'
-                  ? 'Roles are enforced on the server. Staff also need permission to open the private site.'
+                  ? 'Use each person’s own email. Roles and assigned classes are enforced on the server; passwords are provisioned separately.'
                   : kind === 'support'
                     ? 'Free support does not use package sessions.'
                     : kind === 'makeup'

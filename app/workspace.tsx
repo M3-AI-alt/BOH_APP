@@ -18,6 +18,8 @@ import {
   Check,
   Database,
   Loader2,
+  ArrowUpRight,
+  KeyRound,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -44,6 +46,12 @@ import RecordForm from './record-form';
 import StudentProfile from './student-profile';
 import StudentLinkForm from './student-link-form';
 import { createRefreshQueue } from '@/lib/refresh-queue';
+import {
+  accessScope,
+  AccessError,
+  homeView,
+  isAccessDenied,
+} from '@/lib/access';
 import {
   Overview,
   Attendance,
@@ -108,6 +116,18 @@ export default function Workspace({ userName }: { userName: string }) {
     [progress, setProgress] = useState<number | null>(null),
     [saved, setSaved] = useState('');
   const current = useRef<any>({});
+  const scope = useRef('');
+  const discardPrivateState = useCallback(() => {
+    scope.current = '';
+    setSnapshot(null);
+    setDialog(null);
+    setStudentId('');
+    setProfileDate('');
+    setClassFilter('');
+    setSearch('');
+    setSaved('');
+    setHelp(false);
+  }, []);
   const refreshQueue = useMemo(
     () =>
       createRefreshQueue<Snapshot>({
@@ -116,7 +136,10 @@ export default function Workspace({ userName }: { userName: string }) {
           let r = await fetch('/api/state', { cache: 'no-store' });
           let j: any = await r.json();
           if (!r.ok)
-            throw new Error(j.error || 'Could not load the workspace.');
+            throw new AccessError(
+              j.error || 'Could not load the workspace.',
+              r.status,
+            );
           if (j.needsImport) {
             if (j.actor.role !== 'Director')
               throw new Error(
@@ -142,42 +165,39 @@ export default function Workspace({ userName }: { userName: string }) {
             r = await fetch('/api/state', { cache: 'no-store' });
             j = await r.json();
             if (!r.ok)
-              throw new Error(j.error || 'Could not load imported records.');
+              throw new AccessError(
+                j.error || 'Could not load imported records.',
+                r.status,
+              );
           }
           return j;
         },
         apply: (j) => {
+          const nextScope = accessScope(j.actor);
+          if (scope.current !== nextScope) {
+            discardPrivateState();
+            setView(homeView(j.actor.role));
+            scope.current = nextScope;
+          }
           setSnapshot(j);
           setProgress(null);
           setError('');
-          if (j.actor.role === 'TA') setView('Attendance');
         },
         error: (e) => {
+          if (isAccessDenied(e)) discardPrivateState();
+          if (e instanceof AccessError && e.status === 428)
+            window.location.assign('/change-password');
           setError(
             e instanceof Error ? e.message : 'Could not load the workspace.',
           );
         },
       }),
-    [],
+    [discardPrivateState],
   );
   const load = useCallback(() => refreshQueue.refresh(), [refreshQueue]);
   const afterSaved = useCallback(
-    async (record?: DataRecord) => {
-      if (record?.id && record.kind)
-        setSnapshot((s) =>
-          s
-            ? {
-                ...s,
-                records: [
-                  ...s.records.filter((r) => r.id !== record.id),
-                  (s.records.find((r) => r.id === record.id)?.revision ?? 0) >
-                  record.revision
-                    ? s.records.find((r) => r.id === record.id)!
-                    : record,
-                ],
-              }
-            : s,
-        );
+    async (_record?: DataRecord) => {
+      // Only an authorised snapshot can repopulate views after a role change.
       const refreshed = await load();
       setSaved(
         new Date().toLocaleTimeString('en-GB', {
@@ -203,7 +223,7 @@ export default function Workspace({ userName }: { userName: string }) {
   }, [load]);
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === 'visible' && !dialog) void load();
+      if (document.visibilityState === 'visible') void load();
     };
     const timer = setInterval(refresh, 60000);
     window.addEventListener('focus', refresh);
@@ -216,12 +236,30 @@ export default function Workspace({ userName }: { userName: string }) {
       window.removeEventListener('focus', refresh);
       window.removeEventListener('storage', changed);
     };
-  }, [load, dialog]);
+  }, [load]);
   const navigate = useCallback((v: string) => {
     setView(v);
     setSearch('');
     setError('');
   }, []);
+  const signOut = useCallback(async () => {
+    try {
+      const r = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!r.ok)
+        throw new Error('Sign-out could not finish. Please try again.');
+      discardPrivateState();
+      window.localStorage.setItem('boh-records-changed', String(Date.now()));
+      window.location.assign('/login');
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Please try signing out again.',
+      );
+    }
+  }, [discardPrivateState]);
   const open = useCallback(
     (kind: string, record?: any, defaults?: any) =>
       setDialog({ kind, record, defaults }),
@@ -240,10 +278,16 @@ export default function Workspace({ userName }: { userName: string }) {
         }),
       });
       const j: any = await r.json();
-      if (!r.ok) throw new Error(j.error || 'Could not save.');
+      if (!r.ok) {
+        if ([401, 403].includes(r.status)) {
+          discardPrivateState();
+          void load();
+        }
+        throw new Error(j.error || 'Could not save.');
+      }
       await afterSaved(j);
     },
-    [afterSaved],
+    [afterSaved, discardPrivateState, load],
   );
   current.current = { snapshot, month, view, navigate, setMonth };
   useEffect(() => {
@@ -328,7 +372,7 @@ export default function Workspace({ userName }: { userName: string }) {
   const classes = snapshot ? entries(snapshot.records, 'class') : [];
   const canCreate =
     view === 'Attendance'
-      ? role !== 'Finance'
+      ? role !== 'Finance' && classes.length > 0
       : view === 'Students'
         ? role === 'Director'
         : true;
@@ -425,6 +469,27 @@ export default function Workspace({ userName }: { userName: string }) {
         : null,
     [snapshot, studentId, reviewDate, profileDate],
   );
+  if (!snapshot && error)
+    return (
+      <main className="password-page">
+        <section className="password-card">
+          <img
+            src="/brand/boh-navy.svg"
+            alt="Ben Oxford Hub"
+            width={210}
+            height={85}
+          />
+          <h1>Let’s check your access.</h1>
+          <p role="alert">{error}</p>
+          <a className="welcome-signin-button" href="/login">
+            Go to sign in <ArrowUpRight size={18} />
+          </a>
+          <Button variant="ghost" onClick={() => void load()} disabled={busy}>
+            Check again
+          </Button>
+        </section>
+      </main>
+    );
   return (
     <SidebarProvider>
       <Sidebar className="boh-sidebar">
@@ -432,7 +497,7 @@ export default function Workspace({ userName }: { userName: string }) {
           <div className="brand">
             <img
               className="brand-logo"
-              src="/brand/boh-logo.svg"
+              src="/brand/boh-navy.svg"
               alt="Ben Oxford Hub"
               width={1206}
               height={489.84}
@@ -468,6 +533,10 @@ export default function Workspace({ userName }: { userName: string }) {
           </div>
         </SidebarContent>
         <SidebarFooter>
+          <a className="help-button" href="/change-password">
+            <KeyRound size={17} />
+            Change my password
+          </a>
           <button className="help-button" onClick={() => setHelp(true)}>
             <HelpCircle size={17} />
             How to use your workspace
@@ -478,14 +547,13 @@ export default function Workspace({ userName }: { userName: string }) {
               <strong>{snapshot?.actor.name ?? userName}</strong>
               <span>{role === 'TA' ? 'Teaching Assistant' : role}</span>
             </div>
-            <a
+            <button
               className="signout"
-              href="/signout-with-chatgpt?return_to=/"
-              target="_top"
+              onClick={() => void signOut()}
               aria-label="Sign out"
             >
               <LogOut size={15} />
-            </a>
+            </button>
           </div>
         </SidebarFooter>
       </Sidebar>
@@ -551,6 +619,7 @@ export default function Workspace({ userName }: { userName: string }) {
               <Button variant="outline" onClick={() => void load()}>
                 Retry
               </Button>
+              {!snapshot && <a href="/login">Sign in</a>}
             </div>
           )}
           {progress !== null && (
@@ -572,6 +641,65 @@ export default function Workspace({ userName }: { userName: string }) {
           )}
           {snapshot && (
             <>
+              {view === homeView(role) && (
+                <section
+                  className="workspace-welcome"
+                  aria-label="Your workspace home"
+                >
+                  <div className="workspace-welcome-copy">
+                    <span className={'role-label role-' + role.toLowerCase()}>
+                      {role === 'TA' ? 'TEACHING TEAM' : role.toUpperCase()}{' '}
+                      WORKSPACE
+                    </span>
+                    <h2>Welcome back, {snapshot.actor.name || userName}.</h2>
+                    <p>
+                      {role === 'TA'
+                        ? 'Your classes. Your students. One clear place to begin.'
+                        : role === 'Finance'
+                          ? 'Every payment, every package. A clear view of the month.'
+                          : 'Your people, classes and finances. Connected.'}
+                    </p>
+                    <div className="welcome-shortcuts">
+                      {role === 'Director' ? (
+                        <>
+                          <button onClick={() => navigate('Attendance')}>
+                            <CalendarCheck2 size={16} /> Attendance{' '}
+                            <ArrowUpRight size={14} />
+                          </button>
+                          <button onClick={() => navigate('Finance')}>
+                            <Wallet size={16} /> Monthly finance{' '}
+                            <ArrowUpRight size={14} />
+                          </button>
+                          <button onClick={() => navigate('Team & access')}>
+                            <Users size={16} /> My team{' '}
+                            <ArrowUpRight size={14} />
+                          </button>
+                        </>
+                      ) : role === 'Finance' ? (
+                        <>
+                          <button onClick={() => open('receipt')}>
+                            <Plus size={16} /> Record payment
+                          </button>
+                          <button onClick={() => navigate('Renewals')}>
+                            <RefreshCw size={16} /> Renewal review{' '}
+                            <ArrowUpRight size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setHelp(true)}>
+                          <HelpCircle size={16} /> Attendance guide
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <img
+                    src="/brand/centre-entrance.jpg"
+                    alt=""
+                    width={160}
+                    height={180}
+                  />
+                </section>
+              )}
               <div className="period-toolbar">
                 <div className="period">
                   <Button
@@ -660,7 +788,7 @@ export default function Workspace({ userName }: { userName: string }) {
                   )}
                 </div>
               )}
-              <View {...props} />
+              <View key={accessScope(snapshot.actor) + ':' + view} {...props} />
             </>
           )}
         </div>
@@ -761,10 +889,10 @@ export default function Workspace({ userName }: { userName: string }) {
                 </p>
                 <h2>Give staff access</h2>
                 <p>
-                  Add the staff member’s ChatGPT sign-in email under Team &
-                  access and choose their role. TAs also need their classes
-                  assigned. The owner must share this private site with those
-                  same people as viewers.
+                  Add the staff member’s individual email under Team & access
+                  and choose their role. TAs also need their classes assigned.
+                  Arrange an individual temporary password before their first
+                  sign-in; do not give anyone your own login.
                 </p>
               </>
             )}

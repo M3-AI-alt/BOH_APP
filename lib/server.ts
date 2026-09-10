@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { AuthError, passwordActor } from './password-auth';
 import type { Actor } from './types';
 import {
   StorageError,
@@ -28,46 +28,7 @@ export class AppError extends Error {
   }
 }
 export async function actor(): Promise<Actor> {
-  const u =
-    (await getChatGPTUser()) ??
-    (process.env.NODE_ENV === 'development'
-      ? {
-          userId: 'local-director',
-          email: 'seedy@sites.test',
-          fullName: 'Director',
-        }
-      : null);
-  if (!u) throw new AppError('Please sign in to continue.', 401);
-  const email = u.email.trim().toLowerCase();
-  let row = await storeCall('staff_by_user', { userId: u.userId });
-  if (!row) {
-    const pending = await storeCall('staff_by_email', { email });
-    if (pending && !pending.user_id)
-      row = await storeCall('claim_staff', { email, userId: u.userId });
-  }
-  if (
-    !row &&
-    env.BOH_OWNER_EMAIL &&
-    email === env.BOH_OWNER_EMAIL.toLowerCase()
-  )
-    row = await storeCall('ensure_owner', {
-      userId: u.userId,
-      email,
-      name: u.fullName ?? 'Director',
-    });
-  if (!row || !row.active)
-    throw new AppError(
-      'Your account does not have staff access. Ask the Director to add your sign-in email.',
-      403,
-    );
-  return {
-    userId: u.userId,
-    email: row.email,
-    name: row.name,
-    role: row.role,
-    classIds: row.class_ids,
-    active: !!row.active,
-  };
+  return passwordActor();
 }
 export function requireRole(a: Actor, roles: string[]) {
   if (!roles.includes(a.role))
@@ -103,7 +64,11 @@ export function response(data: unknown, status = 200) {
   });
 }
 export function failure(e: unknown) {
-  if (e instanceof AppError || e instanceof StorageError)
+  if (
+    e instanceof AppError ||
+    e instanceof StorageError ||
+    e instanceof AuthError
+  )
     return response({ error: e.message }, e.status);
   console.error(
     'BOH request failed',
@@ -134,7 +99,9 @@ export async function snapshot(a: Actor) {
   const [data, members, activity, manifestText, refreshText, auditText] =
     await Promise.all([
       allRecords(),
-      a.role === 'Director' ? storeCall('list_staff') : [],
+      a.role === 'Director'
+        ? storeCall('auth_team', { actorId: a.userId })
+        : [],
       a.role === 'TA' ? [] : storeCall('list_activity'),
       storeCall('get_setting', { key: 'import-manifest' }),
       storeCall('get_setting', { key: 'student-source-refresh' }),
@@ -713,6 +680,24 @@ export async function saveRecord(a: Actor, input: any) {
   }
   if (kind === 'support') {
     await related(p.studentId, 'student');
+    if (a.role === 'TA') {
+      const records = await allRecords();
+      const belongs = (studentId: string, cid: string) =>
+        records.some(
+          (r) =>
+            r.kind === 'membership' &&
+            r.studentId === studentId &&
+            r.classId === cid,
+        );
+      if (
+        !belongs(p.studentId, classId) ||
+        (old && !belongs(old.studentId, old.classId))
+      )
+        throw new AppError(
+          'Choose a student from the assigned class roster.',
+          403,
+        );
+    }
     p.date = day(p.date, 'support date', true);
     p.notes = text(p.notes, 'lesson content', true);
     if (!['Planned', 'Completed', 'Cancelled'].includes(p.status))
@@ -876,6 +861,10 @@ export async function saveStaff(a: Actor, input: any) {
       : [];
   for (const cid of classIds) await related(cid, 'class');
   const old = await storeCall('staff_by_email', { email });
+  if (input.id && old?.id !== input.id)
+    throw new AppError(
+      'A sign-in email cannot be changed here. Keep each account linked to its original identity.',
+    );
   if (old?.id === 'owner')
     throw new AppError('The owner account cannot be changed here.');
   const active = input.active !== false;

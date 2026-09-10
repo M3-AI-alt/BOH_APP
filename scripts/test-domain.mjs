@@ -13,6 +13,35 @@ const moduleUrl = (text) =>
     }).outputText,
   ).toString('base64');
 const types = moduleUrl(readFileSync('lib/types.ts', 'utf8'));
+const access = await import(moduleUrl(readFileSync('lib/access.ts', 'utf8')));
+test('role home pages and scope invalidation are explicit, including class removal', () => {
+  const actor = {
+    userId: 'actor',
+    role: 'TA',
+    active: true,
+    classIds: ['a', 'b'],
+  };
+  assert.equal(access.homeView('TA'), 'Attendance');
+  assert.equal(access.homeView('Finance'), 'Finance');
+  assert.equal(access.homeView('Director'), 'Overview');
+  assert.equal(
+    access.accessScope(actor),
+    access.accessScope({ ...actor, classIds: ['b', 'a'] }),
+  );
+  assert.notEqual(
+    access.accessScope(actor),
+    access.accessScope({ ...actor, classIds: [] }),
+  );
+  assert.notEqual(
+    access.accessScope(actor),
+    access.accessScope({ ...actor, active: false }),
+  );
+  for (const status of [401, 403, 428])
+    assert.equal(
+      access.isAccessDenied(new access.AccessError('Denied', status)),
+      true,
+    );
+});
 const d = await import(
   moduleUrl(
     readFileSync('lib/domain.ts', 'utf8').replace(

@@ -1662,11 +1662,11 @@ export function Team(p: ViewProps) {
       <div className="notice">
         <ShieldCheck size={19} />
         <div>
-          <strong>Two protections for your centre</strong>
+          <strong>Individual accounts. One connected team.</strong>
           <p>
-            Staff must be allowed to open this private site and have a role
-            here. Add staff as site viewers—not site editors. Your Director
-            account controls the records.
+            Staff sign in with their own email and password. Each person also
+            needs a role below. A TA sees only assigned classes; Finance manages
+            money; the Director manages the centre. No shared passwords.
           </p>
         </div>
       </div>
@@ -1680,7 +1680,7 @@ export function Team(p: ViewProps) {
             'Sign-in email',
             'Role',
             'Assigned classes',
-            'Status',
+            'Sign-in status',
             '',
           ]}
           rows={p.snapshot.members.map((m: any) => [
@@ -1707,9 +1707,13 @@ export function Team(p: ViewProps) {
             <Badge>
               {!m.active
                 ? 'Disabled'
-                : m.user_id
-                  ? 'Active'
-                  : 'Awaiting first sign-in'}
+                : !m.password_ready
+                  ? 'Password setup needed'
+                  : m.must_change_password
+                    ? 'Temporary password'
+                    : m.last_sign_in_at
+                      ? 'Active'
+                      : 'Awaiting first sign-in'}
             </Badge>,
             m.id !== 'owner' ? (
               <Button
@@ -1717,7 +1721,7 @@ export function Team(p: ViewProps) {
                 onClick={() =>
                   p.open('staff', {
                     ...m,
-                    classIds: JSON.parse(m.class_ids ?? '[]'),
+                    classIds: Array.isArray(m.class_ids) ? m.class_ids : [],
                     active: !!m.active,
                   })
                 }
@@ -1730,6 +1734,32 @@ export function Team(p: ViewProps) {
           ])}
         />
       </Panel>
+      <div className="team-guide">
+        <div>
+          <span>01</span>
+          <strong>Prepare access</strong>
+          <p>
+            Add the exact sign-in email and role. Assign each TA’s classes using
+            Edit access.
+          </p>
+        </div>
+        <div>
+          <span>02</span>
+          <strong>Give individual credentials</strong>
+          <p>
+            Arrange a temporary password for each approved account. Adding a
+            role row alone does not create a password.
+          </p>
+        </div>
+        <div>
+          <span>03</span>
+          <strong>First sign-in</strong>
+          <p>
+            Open the app link, sign in and set a personal password. The account
+            status updates after entry.
+          </p>
+        </div>
+      </div>
       <Panel
         title="Recent activity"
         subtitle="Saved changes are attributed to the signed-in staff member."
