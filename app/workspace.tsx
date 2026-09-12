@@ -48,6 +48,7 @@ import { Badge, Choice, ClassTag, SearchBox, DataTable } from './ui';
 import RecordForm from './record-form';
 import StudentProfile from './student-profile';
 import { Accounting } from './accounting-workspace';
+import { BulkWorkspace } from './bulk-workspace';
 import { CentreSettings } from './centre-settings';
 import StudentLinkForm from './student-link-form';
 import { createRefreshQueue } from '@/lib/refresh-queue';
@@ -87,6 +88,7 @@ const nav = [
   { label: 'Students', icon: Users },
   { label: 'Finance', icon: Wallet },
   { label: 'Accounting', icon: FileInput },
+  { label: 'Import & export', icon: FileInput },
   { label: 'Renewals', icon: RefreshCw },
   { label: 'Packages', icon: BookOpen },
   { label: 'Classes & catalogue', icon: BookOpen },
@@ -100,6 +102,7 @@ const views: Record<string, React.ComponentType<ViewProps>> = {
   Students: Students,
   Finance: Finance,
   Accounting,
+  'Import & export': BulkWorkspace,
   'Classes & catalogue': CentreSettings,
   Renewals: Renewals,
   Packages: Packages,
@@ -372,7 +375,7 @@ export default function Workspace({ userName }: { userName: string }) {
   const role = snapshot?.actor.role ?? 'Director';
   const navigation = nav.filter((n) =>
     role === 'TA'
-      ? n.label === 'Attendance'
+      ? ['Attendance', 'Import & export'].includes(n.label)
       : role === 'Finance'
         ? !['Leads', 'Team & access'].includes(n.label)
         : true,
@@ -400,6 +403,7 @@ export default function Workspace({ userName }: { userName: string }) {
     Students: 'Student directory',
     Finance: 'Monthly finance',
     Accounting: 'Accounting review',
+    'Import & export': 'Import & export',
     'Classes & catalogue': 'Classes & catalogue',
     Renewals: 'Upcoming renewals',
     Packages: 'Student packages',
@@ -415,6 +419,8 @@ export default function Workspace({ userName }: { userName: string }) {
     Finance:
       'Actual collections and payments. Separate from expected renewals.',
     Accounting: 'Review source documents, approvals and payment evidence.',
+    'Import & export':
+      'Enter one record or fill a worksheet. Review before saving.',
     'Classes & catalogue':
       'Maintain classes and the price list without changing past agreements.',
     Renewals: 'Names and expected dates. No guessed renewal prices.',
@@ -470,6 +476,7 @@ export default function Workspace({ userName }: { userName: string }) {
         },
         navigate,
         save,
+        refresh: load,
       }
     : (null as any);
   const View = views[view] ?? Overview;
@@ -797,6 +804,7 @@ export default function Workspace({ userName }: { userName: string }) {
                 'Original records',
                 'Team & access',
                 'Accounting',
+                'Import & export',
                 'Classes & catalogue',
               ].includes(view) && (
                 <div className="filter-toolbar">

@@ -17,7 +17,11 @@ const forbidden = tracked.filter(
   (f) =>
     /^private-data\/|^db\/import\.json$|(^|\/)(\.dev\.vars|\.env)(\.|$)|\.(xlsx?|csv|sqlite3?|pem)$/.test(
       f,
-    ) && f !== '.env.example',
+    ) &&
+    f !== '.env.example' &&
+    !/^public\/templates\/BOH-(student|lead|class|membership|calendar|attendance|makeup|support|catalogue|package|receipt|expense|commitment|payroll|reconciliation|task)\.xlsx$/.test(
+      f,
+    ),
 );
 if (forbidden.length)
   throw Error('Refusing to publish private or generated source files.');

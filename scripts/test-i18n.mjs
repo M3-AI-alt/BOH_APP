@@ -8,7 +8,7 @@ import ts from 'typescript';
 const require = createRequire(new URL('../package.json', import.meta.url));
 const code = buildSync({
   stdin: {
-    contents: `export * from './lib/i18n'; export * from './app/language'; export * from './app/ui'; export * from './app/views'; export * from './app/finance-work'; export * from './app/centre-settings'; export * from './app/accounting-workspace'; export {default as Welcome} from './app/welcome';`,
+    contents: `export * from './lib/i18n'; export * from './app/language'; export * from './app/ui'; export * from './app/views'; export * from './app/finance-work'; export * from './app/centre-settings'; export * from './app/accounting-workspace'; export * from './app/bulk-workspace'; export {default as Welcome} from './app/welcome';`,
     resolveDir: process.cwd(),
     loader: 'tsx',
   },
@@ -298,6 +298,7 @@ test('every working screen renders in English and Vietnamese without mutating so
       'AccountantTasks',
       'CentreSettings',
       'Accounting',
+      'BulkWorkspace',
     ]) {
       const html = render(locale, i[name], props);
       assert.ok(html.length > 100, name + ' ' + locale);

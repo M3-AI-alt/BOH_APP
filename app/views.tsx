@@ -66,6 +66,7 @@ export type ViewProps = {
   detail: (id: string, asOf?: string) => void;
   navigate: (view: string) => void;
   save: (kind: string, record: any, payload: any) => Promise<void>;
+  refresh?: () => Promise<boolean>;
 };
 export function Metric({
   label,

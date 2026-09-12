@@ -2625,3 +2625,20 @@ a {
     grid-template-columns: 1fr;
   }
 }
+/* Self-service worksheet workspace */
+.bulk-workspace { display: grid; gap: 20px; }
+.bulk-cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+.bulk-toolbar,.bulk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 24px; }
+.bulk-category { padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.bulk-students { color: #694198; background: #f3edfc; }
+.bulk-teaching { color: #176b62; background: #eaf7f2; }
+.bulk-finance { color: #8a5b14; background: #fff4da; }
+.bulk-link { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #dce3eb; border-radius: 10px; padding: 10px 14px; color: #0d3048; background: white; text-decoration: none; font-size: 14px; }
+.bulk-link:hover { background: #f4f7fa; border-color: #0d3048; }
+.bulk-help,.bulk-guide>p { margin: 12px 24px 20px; color: #53667b; line-height: 1.6; font-size: 14px; }
+.bulk-upload { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 24px; padding: 20px; border: 1px dashed #a7b8ca; border-radius: 14px; background: #f8fafc; overflow-wrap: anywhere; }
+.bulk-upload input { width: 100%; font-size: 13px; }
+.bulk-upload+button { margin: 0 24px 20px; }
+.bulk-guide { border: 1px solid #dce3eb; border-radius: 16px; background: white; overflow: hidden; }
+.bulk-guide summary { cursor: pointer; padding: 20px 24px; font-weight: 600; }
+@media(max-width:800px) { .bulk-cards { grid-template-columns: 1fr; } .bulk-toolbar { align-items: stretch; } }

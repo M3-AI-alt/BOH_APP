@@ -41,6 +41,7 @@ next-env.d.ts
 /db/import.json
 /private-data/
 *.xlsx
+!public/templates/BOH-*.xlsx
 *.xls
 *.csv
 *.sqlite

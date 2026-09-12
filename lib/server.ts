@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { AuthError, passwordActor } from './password-auth';
-import type { Actor } from './types';
+import type { Actor, DataRecord } from './types';
 import {
   StorageError,
   storeCall,
@@ -346,20 +346,9 @@ function amount(v: any, name: string, min = 0) {
 }
 async function related(id: any, kind: string) {
   if (typeof id !== 'string') throw new AppError('Select a ' + kind + '.');
-  const r = await getRecord(id);
-  if (!r || r.kind !== kind)
+  const record = await getRecord(id);
+  if (!record || record.kind !== kind)
     throw new AppError('Select an existing ' + kind + '.');
-  return r;
-}
-async function canonicalStudent(id: string) {
-  const seen = new Set<string>();
-  let record = await related(id, 'student');
-  while (record.payload.canonicalStudentId) {
-    if (seen.has(record.id))
-      throw new AppError('Student identity needs Director review.');
-    seen.add(record.id);
-    record = await related(record.payload.canonicalStudentId, 'student');
-  }
   return record;
 }
 export async function linkStudentRecord(a: Actor, input: any) {
@@ -381,6 +370,38 @@ export async function linkStudentRecord(a: Actor, input: any) {
   );
 }
 export async function saveRecord(a: Actor, input: any) {
+  const command = await prepareRecord(a, input);
+  return decodeRecord(await storeCall('commit_record', command));
+}
+/** Shared, side-effect-free validation for forms and bulk preview. IDs are server supplied. */
+export async function prepareRecord(
+  a: Actor,
+  input: any,
+  newId?: string,
+  context?: { records: DataRecord[]; attendanceCutoff: string },
+) {
+  const getRecord = context
+    ? async (id: string) => context.records.find((r) => r.id === id) ?? null
+    : findRecord;
+  const allRecords = context ? async () => context.records : listRecords;
+  async function related(id: any, kind: string) {
+    if (typeof id !== 'string') throw new AppError('Select a ' + kind + '.');
+    const r = await getRecord(id);
+    if (!r || r.kind !== kind)
+      throw new AppError('Select an existing ' + kind + '.');
+    return r;
+  }
+  async function canonicalStudent(id: string) {
+    const seen = new Set<string>();
+    let record = await related(id, 'student');
+    while (record.payload.canonicalStudentId) {
+      if (seen.has(record.id))
+        throw new AppError('Student identity needs Director review.');
+      seen.add(record.id);
+      record = await related(record.payload.canonicalStudentId, 'student');
+    }
+    return record;
+  }
   const kind = text(input.kind, 'record type', true);
   if (!validKinds.includes(kind))
     throw new AppError('Unsupported record type.');
@@ -424,7 +445,7 @@ export async function saveRecord(a: Actor, input: any) {
         'Select the linked current student profile, not an old transfer identity.',
       );
   }
-  let id = old?.id ?? crypto.randomUUID();
+  let id = old?.id ?? newId ?? crypto.randomUUID();
   if (kind === 'catalogue') {
     p.label = text(p.label, 'package name', true, 150);
     p.sessions = amount(p.sessions, 'sessions', 1);
@@ -671,12 +692,14 @@ export async function saveRecord(a: Actor, input: any) {
     if (member.studentId !== p.studentId || member.classId !== p.classId)
       throw new AppError('Student does not match this class row.');
     p.date = day(p.date, 'lesson date', true);
-    const refreshed = await storeCall('get_setting', {
-      key: 'student-source-refresh',
-    });
-    const attendanceCutoff = refreshed
-      ? JSON.parse(refreshed).dataDate || CUTOFF
-      : CUTOFF;
+    const refreshed = context
+      ? null
+      : await storeCall('get_setting', {
+          key: 'student-source-refresh',
+        });
+    const attendanceCutoff =
+      context?.attendanceCutoff ??
+      (refreshed ? JSON.parse(refreshed).dataDate || CUTOFF : CUTOFF);
     if (p.date <= attendanceCutoff)
       throw new AppError(
         'Historical attendance is already imported. Use a new lesson date.',
@@ -898,7 +921,7 @@ export async function saveRecord(a: Actor, input: any) {
       throw new AppError('This lead is already enrolled.');
     leadId = lead.id;
   }
-  const result = await storeCall('commit_record', {
+  return {
     record: {
       id: rid,
       kind,
@@ -912,8 +935,7 @@ export async function saveRecord(a: Actor, input: any) {
     reason: text(input.reason, 'reason', false, 500),
     transferDate,
     leadId,
-  });
-  return decodeRecord(result);
+  };
 }
 export async function studentAction(a: Actor, input: any) {
   requireRole(a, ['Director']);
