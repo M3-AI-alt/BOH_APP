@@ -90,6 +90,8 @@ const build = JSON.parse(
     '24',
     '--package-manager',
     'npm',
+    '--root-directory',
+    '.',
     '--build-script',
     'build:hostinger',
     '--entry-file',
