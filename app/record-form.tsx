@@ -32,6 +32,33 @@ type Field = {
   required?: boolean;
 };
 const fields: Record<string, Field[]> = {
+  class: [
+    { key: 'name', label: 'Class name', required: true },
+    { key: 'color', label: 'Class colour', type: 'color', required: true },
+    {
+      key: 'weekdays',
+      label: 'Lesson weekdays',
+      type: 'weekdays',
+      required: true,
+    },
+    {
+      key: 'archived',
+      label: 'Archive class (keep attendance history)',
+      type: 'checkbox',
+    },
+  ],
+  catalogue: [
+    { key: 'label', label: 'Package name', required: true },
+    { key: 'sessions', label: 'Sessions', type: 'number', required: true },
+    {
+      key: 'price',
+      label: 'Catalogue price (VND)',
+      type: 'number',
+      required: true,
+    },
+    { key: 'active', label: 'Available for new agreements', type: 'checkbox' },
+    { key: 'notes', label: 'Notes', type: 'textarea' },
+  ],
   receipt: [
     {
       key: 'date',
@@ -413,6 +440,8 @@ const fields: Record<string, Field[]> = {
   ],
 };
 const titles: Record<string, string> = {
+  class: 'Class settings',
+  catalogue: 'Package catalogue',
   receipt: 'Record payment',
   expense: 'Record expense',
   student: 'Student profile',
@@ -451,6 +480,8 @@ export default function RecordForm({
     date: today(),
     startDate: today(),
     from: today(),
+    color: '#4466ee',
+    weekdays: [0, 3],
     scope: 'all',
     purpose: 'Tuition',
     account: 'Company BIDV',
@@ -495,6 +526,10 @@ export default function RecordForm({
     ),
     classes = entries(records, 'class').filter((c) => !c.archived),
     packages = entries(records, 'package');
+  const catalogue = entries(records, 'catalogue').filter(
+    (c) => c.active !== false,
+  );
+  const prices = entries(records, 'catalogue').length ? catalogue : priceList;
   const set = (key: string, v: any) =>
     setData((d: any) => ({
       ...d,
@@ -531,6 +566,8 @@ export default function RecordForm({
         throw new Error('Please complete ' + missing.label + '.');
       }
       if (kind === 'package') {
+        if (p.scope === 'class' && !p.classId)
+          throw new Error('Choose a class for this class-specific package.');
         p.label = p.label || p.sessions + ' sessions';
         p.sessions = Number(p.sessions);
       }
@@ -692,37 +729,86 @@ export default function RecordForm({
         />
       );
     }
+    if (f.type === 'weekdays')
+      return (
+        <div className="class-checks">
+          {[
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+          ].map((d, i) => (
+            <label key={d}>
+              <input
+                type="checkbox"
+                checked={v.includes(i)}
+                onChange={(e) =>
+                  set(
+                    'weekdays',
+                    e.target.checked
+                      ? [...v, i]
+                      : v.filter((n: number) => n !== i),
+                  )
+                }
+              />
+              {t(d)}
+            </label>
+          ))}
+        </div>
+      );
     if (f.type === 'price')
       return (
-        <Choice
-          id={'field-' + f.key}
-          label={t('Select session package')}
-          value={String(v)}
-          onChange={(v) => {
-            const p = priceList.find((p) => p.sessions === Number(v));
-            setData((d: any) => ({
-              ...d,
-              sessions: Number(v),
-              label: v + ' sessions',
-              agreedFee: p?.price ?? d.agreedFee,
-            }));
-          }}
-          options={[
-            ...priceList.map((p) => ({
-              value: String(p.sessions),
-              label:
-                p.sessions + t(' sessions · ') + money(p.price) + t(' VND'),
-            })),
-            ...(v && !priceList.some((p) => p.sessions === Number(v))
-              ? [
-                  {
-                    value: String(v),
-                    label: v + t(' sessions · custom agreement'),
-                  },
-                ]
-              : []),
-          ]}
-        />
+        <div className="space-y-2">
+          <Choice
+            id={'field-' + f.key}
+            label={t('Select session package')}
+            value={String(v)}
+            onChange={(v) => {
+              const p = prices.find((p) => p.sessions === Number(v));
+              setData((d: any) => ({
+                ...d,
+                sessions: Number(v),
+                label: v + ' sessions',
+                agreedFee: p?.price ?? d.agreedFee,
+              }));
+            }}
+            options={[
+              ...prices.map((p) => ({
+                value: String(p.sessions),
+                label:
+                  p.sessions + t(' sessions · ') + money(p.price) + t(' VND'),
+              })),
+              ...(v && !prices.some((p) => p.sessions === Number(v))
+                ? [
+                    {
+                      value: String(v),
+                      label: v + t(' sessions · custom agreement'),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+          <label>
+            {t('Custom session count')}
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              step="1"
+              value={v || ''}
+              onChange={(e) =>
+                setData((d: any) => ({
+                  ...d,
+                  sessions: Number(e.target.value),
+                  label: e.target.value + ' sessions',
+                }))
+              }
+            />
+          </label>
+        </div>
       );
     if (f.type === 'select')
       return (
@@ -788,7 +874,7 @@ export default function RecordForm({
                   )
                 : kind === 'staff'
                   ? t(
-                      'Use each person’s own email. Roles and assigned classes are enforced on the server; passwords are provisioned separately.',
+                      'Use each person’s own email. TAs have teaching access to all classes; passwords are provisioned separately.',
                     )
                   : kind === 'support'
                     ? t('Free support does not use package sessions.')
@@ -985,28 +1071,7 @@ export default function RecordForm({
               )}
               {kind === 'staff' && data.role === 'TA' && (
                 <div className="wide">
-                  <label>{t('Assigned classes')}</label>
-                  <div className="class-checks">
-                    {classes.map((c) => (
-                      <div className="checkbox-field" key={c.id}>
-                        <Checkbox
-                          id={'assign-' + c.id}
-                          checked={data.classIds?.includes(c.id)}
-                          onCheckedChange={(v) =>
-                            set(
-                              'classIds',
-                              v
-                                ? [...data.classIds, c.id]
-                                : data.classIds.filter(
-                                    (id: string) => id !== c.id,
-                                  ),
-                            )
-                          }
-                        />
-                        <label htmlFor={'assign-' + c.id}>{c.name}</label>
-                      </div>
-                    ))}
-                  </div>
+                  <p>{t('All classes · teaching only')}</p>
                 </div>
               )}
               {record?.payload?.imported &&

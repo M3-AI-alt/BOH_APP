@@ -28,7 +28,9 @@ export async function storeCall(
         ? 'boh_student_link'
         : operation.startsWith('auth_')
           ? 'boh_auth'
-          : 'boh_store'),
+          : operation.startsWith('fin_')
+            ? 'boh_finance'
+            : 'boh_store'),
     {
       method: 'POST',
       headers: {

@@ -72,6 +72,41 @@ const setup = () =>
     ],
     calls: [],
   });
+test('a linked payroll payment cannot be detached or reassigned', async () => {
+  const state = setup();
+  state.records.push({
+    id: 'salary-cash',
+    kind: 'expense',
+    revision: 1,
+    classId: '',
+    studentId: '',
+    date: '2026-09-10',
+    payload: {
+      date: '2026-09-10',
+      month: '2026-09',
+      amount: 900,
+      description: 'Salary',
+      category: 'Payroll',
+      account: 'Company BIDV',
+      invoiceStatus: 'Not required',
+      payrollId: 'pay',
+    },
+  });
+  for (const payrollId of ['', 'other-payroll'])
+    await assert.rejects(
+      server.saveRecord(
+        { ...actor, role: 'Finance' },
+        {
+          kind: 'expense',
+          id: 'salary-cash',
+          revision: 1,
+          payload: { payrollId },
+        },
+      ),
+      /detached|reassigned/,
+    );
+  assert.equal(state.calls.filter((c) => c.op === 'commit_record').length, 0);
+});
 test('TA support must belong to the assigned class on create and edit', async () => {
   const ta = { ...actor, role: 'TA', classIds: ['c1'] };
   const payload = {
@@ -269,4 +304,96 @@ test('lifecycle needs a reason and revision and passes a bounded command to the 
   });
   assert.equal(globalThis.__serverQA.calls.at(-1).op, 'student_action');
   assert.equal(globalThis.__serverQA.calls.at(-1).args.expectedRevision, 1);
+});
+
+test('backdated enrollment establishes the first membership on the enrollment date', async () => {
+  const state = setup();
+  await server.saveRecord(actor, {
+    kind: 'student',
+    payload: {
+      name: 'New student',
+      status: 'Active',
+      classId: 'c1',
+      enrollmentDate: '2026-08-20',
+    },
+  });
+  assert.equal(state.calls.at(-1).args.transferDate, '2026-08-20');
+});
+test('class-scoped packages require a class; custom packages remain supported', async () => {
+  setup();
+  const payload = {
+    studentId: st.id,
+    sessions: 36,
+    startDate: '2026-09-10',
+    agreedFee: 11000000,
+    label: 'Custom',
+    scope: 'class',
+  };
+  await assert.rejects(
+    server.saveRecord(actor, { kind: 'package', payload }),
+    /Choose a class/,
+  );
+  await server.saveRecord(actor, {
+    kind: 'package',
+    payload: { ...payload, classId: 'c1' },
+  });
+});
+test('overlapping memberships rejected but adjacent periods allowed', async () => {
+  const state = setup();
+  state.records.push({
+    id: 'm',
+    kind: 'membership',
+    studentId: st.id,
+    classId: 'c1',
+    payload: {
+      studentId: st.id,
+      classId: 'c1',
+      from: '2026-09-01',
+      until: '2026-09-10',
+    },
+  });
+  const payload = {
+    studentId: st.id,
+    classId: 'c1',
+    from: '2026-09-10',
+    until: '',
+    schedule: 'Regular',
+  };
+  await assert.rejects(
+    server.saveRecord(actor, { kind: 'membership', payload }),
+    /overlapping/,
+  );
+  await server.saveRecord(actor, {
+    kind: 'membership',
+    payload: { ...payload, from: '2026-09-11' },
+  });
+});
+test('Finance cannot approve payroll; changes invalidate an existing approval', async () => {
+  const state = setup(),
+    payload = {
+      name: 'Staff',
+      month: '2026-09',
+      gross: 1000,
+      deductions: 100,
+      employerInsurance: 0,
+      status: 'Approved',
+    };
+  await assert.rejects(
+    server.saveRecord(
+      { ...actor, role: 'Finance' },
+      { kind: 'payroll', payload },
+    ),
+    (e) => e.status === 403,
+  );
+  state.records.push({ id: 'pay', kind: 'payroll', revision: 1, payload });
+  const saved = await server.saveRecord(
+    { ...actor, role: 'Finance' },
+    {
+      id: 'pay',
+      revision: 1,
+      kind: 'payroll',
+      payload: { ...payload, gross: 2000 },
+    },
+  );
+  assert.equal(saved.payload.status, 'Draft');
 });

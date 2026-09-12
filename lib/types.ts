@@ -5,6 +5,7 @@ export type RecordKind =
   | 'membership'
   | 'attendance'
   | 'package'
+  | 'catalogue'
   | 'receipt'
   | 'expense'
   | 'makeup'
@@ -34,6 +35,7 @@ export type Actor = {
   name: string;
   role: Role;
   classIds: string[];
+  allClasses?: boolean;
   active: boolean;
 };
 export type Snapshot = {

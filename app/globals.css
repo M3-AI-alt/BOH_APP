@@ -1,6 +1,127 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+
+.accounting-intro,
+.accounting-intro > div,
+.accounting-pagination,
+.accounting-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.accounting-intro {
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.accounting-intro p {
+  margin: 0.3rem 0;
+  color: var(--muted-foreground);
+}
+.accounting-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.accounting-stats .panel {
+  padding-bottom: 1rem;
+  margin-top: 0;
+}
+.accounting-stats > .panel + .panel {
+  margin-top: 0;
+}
+.accounting-stats strong {
+  display: block;
+  padding: 0 1.5rem;
+  font-size: 1.75rem;
+}
+.accounting-notice {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  background: #fff8e8;
+  color: #765419;
+  border: 1px solid #e8d6a8;
+  border-radius: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9375rem;
+}
+.accounting-pagination,
+.accounting-footer {
+  padding: 1rem 1.5rem;
+}
+.accounting-footer {
+  justify-content: flex-end;
+  border-top: 1px solid #e5e9f0;
+}
+.accounting-form {
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  max-height: 65vh;
+  overflow: auto;
+}
+.accounting-form .wide {
+  grid-column: 1/-1;
+}
+.accounting-form label {
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.9375rem;
+}
+.accounting-form input,
+.accounting-form textarea {
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid #d7dfea;
+  border-radius: 0.65rem;
+  background: white;
+  color: #173047;
+}
+.accounting-form textarea {
+  min-height: 6rem;
+}
+.journal-line {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+.audit-json {
+  max-width: 45rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.8125rem;
+}
+.boh-sidebar .nav-caption,
+.boh-sidebar .help-button,
+.boh-sidebar .identity span,
+.boh-sidebar .sidebar-note p > span,
+.topbar .breadcrumb,
+.topbar .secure,
+main .eyebrow,
+main .page-heading p:not(.eyebrow),
+main .source-note,
+main .panel-heading p,
+main [data-slot='table-head'],
+main [data-slot='table-cell'] > span > small {
+  color: #5c6a80;
+}
+@media (max-width: 700px) {
+  .accounting-stats {
+    grid-template-columns: 1fr;
+  }
+  .accounting-form {
+    grid-template-columns: 1fr;
+  }
+  .journal-line {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 @custom-variant dark (&:is(.dark *));
 @theme inline {
   --color-background: var(--background);

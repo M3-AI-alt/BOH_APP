@@ -22,6 +22,7 @@ import {
   Loader2,
   ArrowUpRight,
   KeyRound,
+  FileInput,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -46,6 +47,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge, Choice, ClassTag, SearchBox, DataTable } from './ui';
 import RecordForm from './record-form';
 import StudentProfile from './student-profile';
+import { Accounting } from './accounting-workspace';
+import { CentreSettings } from './centre-settings';
 import StudentLinkForm from './student-link-form';
 import { createRefreshQueue } from '@/lib/refresh-queue';
 import {
@@ -83,8 +86,10 @@ const nav = [
   { label: 'Attendance', icon: CalendarCheck2 },
   { label: 'Students', icon: Users },
   { label: 'Finance', icon: Wallet },
+  { label: 'Accounting', icon: FileInput },
   { label: 'Renewals', icon: RefreshCw },
   { label: 'Packages', icon: BookOpen },
+  { label: 'Classes & catalogue', icon: BookOpen },
   { label: 'Leads', icon: UserPlus },
   { label: 'Team & access', icon: ShieldCheck },
   { label: 'Original records', icon: Database },
@@ -94,6 +99,8 @@ const views: Record<string, React.ComponentType<ViewProps>> = {
   Attendance: Attendance,
   Students: Students,
   Finance: Finance,
+  Accounting,
+  'Classes & catalogue': CentreSettings,
   Renewals: Renewals,
   Packages: Packages,
   Leads: Leads,
@@ -392,6 +399,8 @@ export default function Workspace({ userName }: { userName: string }) {
     Attendance: 'Class attendance',
     Students: 'Student directory',
     Finance: 'Monthly finance',
+    Accounting: 'Accounting review',
+    'Classes & catalogue': 'Classes & catalogue',
     Renewals: 'Upcoming renewals',
     Packages: 'Student packages',
     Leads: 'Leads & trials',
@@ -405,6 +414,9 @@ export default function Workspace({ userName }: { userName: string }) {
       'Students, parent contacts, class membership and session balances.',
     Finance:
       'Actual collections and payments. Separate from expected renewals.',
+    Accounting: 'Review source documents, approvals and payment evidence.',
+    'Classes & catalogue':
+      'Maintain classes and the price list without changing past agreements.',
     Renewals: 'Names and expected dates. No guessed renewal prices.',
     Packages: 'Actual agreed fees, payments and sessions remaining.',
     Leads: 'Keep the next action and the next follow-up in sight.',
@@ -494,7 +506,11 @@ export default function Workspace({ userName }: { userName: string }) {
     );
   return (
     <SidebarProvider>
-      <Sidebar className="boh-sidebar">
+      <Sidebar
+        className="boh-sidebar"
+        role="complementary"
+        aria-label={t('Workspace')}
+      >
         <SidebarHeader>
           <div className="brand">
             <img
@@ -528,7 +544,7 @@ export default function Workspace({ userName }: { userName: string }) {
               {t('Private workspace')}{' '}
               <span>
                 {role === 'TA'
-                  ? t('Assigned classes only')
+                  ? t('All classes · teaching only')
                   : t('Source balances preserved')}
               </span>
             </p>
@@ -733,18 +749,20 @@ export default function Workspace({ userName }: { userName: string }) {
                     <ChevronRight />
                   </Button>
                 </div>
-                <div className="review-control">
-                  <label htmlFor="review-date">{t('Review through')}</label>
-                  <input
-                    type="date"
-                    id="review-date"
-                    value={reviewDate}
-                    max={today()}
-                    onChange={(e) =>
-                      e.target.value && setReviewDate(e.target.value)
-                    }
-                  />
-                </div>
+                {!['Accounting', 'Classes & catalogue'].includes(view) && (
+                  <div className="review-control">
+                    <label htmlFor="review-date">{t('Review through')}</label>
+                    <input
+                      type="date"
+                      id="review-date"
+                      value={reviewDate}
+                      max={today()}
+                      onChange={(e) =>
+                        e.target.value && setReviewDate(e.target.value)
+                      }
+                    />
+                  </div>
+                )}
                 <span className="source-note" aria-live="polite">
                   {saved
                     ? t('Saved at ') + saved
@@ -774,9 +792,13 @@ export default function Workspace({ userName }: { userName: string }) {
                     </p>
                   </div>
                 )}
-              {!['Overview', 'Original records', 'Team & access'].includes(
-                view,
-              ) && (
+              {![
+                'Overview',
+                'Original records',
+                'Team & access',
+                'Accounting',
+                'Classes & catalogue',
+              ].includes(view) && (
                 <div className="filter-toolbar">
                   <SearchBox
                     value={search}

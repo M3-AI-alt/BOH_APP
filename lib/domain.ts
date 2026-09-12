@@ -141,6 +141,7 @@ export function canWrite(actor: Actor, kind: string, classId = '') {
       'receipt',
       'expense',
       'package',
+      'catalogue',
       'commitment',
       'close',
       'reconciliation',
@@ -149,7 +150,8 @@ export function canWrite(actor: Actor, kind: string, classId = '') {
     ].includes(kind);
   return (
     ['attendance', 'makeup', 'support'].includes(kind) &&
-    actor.classIds.includes(classId)
+    !!classId &&
+    (actor.allClasses || actor.classIds.includes(classId))
   );
 }
 export function allowedRecords(actor: Actor, records: DataRecord[]) {
@@ -159,9 +161,18 @@ export function allowedRecords(actor: Actor, records: DataRecord[]) {
         r.kind !== 'source' && (actor.role === 'Director' || r.kind !== 'lead'),
     );
   const membership = records.filter(
-    (r) => r.kind === 'membership' && actor.classIds.includes(r.classId),
+    (r) =>
+      r.kind === 'membership' &&
+      (actor.allClasses || actor.classIds.includes(r.classId)),
   );
   const ids = new Set(membership.map((r) => r.studentId));
+  if (actor.allClasses) {
+    for (const id of ids) {
+      const next = records.find((r) => r.kind === 'student' && r.id === id)
+        ?.payload.canonicalStudentId;
+      if (next) ids.add(next);
+    }
+  }
   return records
     .filter((r) =>
       r.kind === 'student'
@@ -173,7 +184,8 @@ export function allowedRecords(actor: Actor, records: DataRecord[]) {
             'makeup',
             'support',
             'calendar',
-          ].includes(r.kind) && actor.classIds.includes(r.classId),
+          ].includes(r.kind) &&
+          (actor.allClasses || actor.classIds.includes(r.classId)),
     )
     .map((r) =>
       r.kind === 'student'
@@ -185,6 +197,9 @@ export function allowedRecords(actor: Actor, records: DataRecord[]) {
               classId: r.payload.classId,
               pauseFrom: r.payload.pauseFrom,
               resumeDate: r.payload.resumeDate,
+              ...(actor.allClasses
+                ? { canonicalStudentId: r.payload.canonicalStudentId }
+                : {}),
             },
           }
         : r,
@@ -309,6 +324,7 @@ export function getPackageBalances(records: DataRecord[], asOf: string) {
       classId: a.classId,
       date: a.date,
       id: a.id,
+      eventKey: 'lesson:' + a.studentId + ':' + a.classId + ':' + a.date,
     }));
   for (const m of entries(records, 'makeup')) {
     if (
@@ -326,7 +342,7 @@ export function getPackageBalances(records: DataRecord[], asOf: string) {
       m.date > CUTOFF &&
       m.date <= asOf
     )
-      events.push(m);
+      events.push({ ...m, eventKey: 'makeup:' + m.absenceId });
   }
   events.sort(
     (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
@@ -337,7 +353,10 @@ export function getPackageBalances(records: DataRecord[], asOf: string) {
     if (typeof opening === 'number' && opening < 0)
       overrun.set(p.studentId, (overrun.get(p.studentId) || 0) - opening);
   }
+  const consumedEvents = new Set<string>();
   for (const e of events) {
+    if (consumedEvents.has(e.eventKey)) continue;
+    consumedEvents.add(e.eventKey);
     const candidates = pkgs.filter(
       (p) =>
         p.studentId === e.studentId &&
@@ -477,12 +496,16 @@ export function studentReview(records: DataRecord[], asOf: string) {
           const a = attendanceById.get(m.absenceId);
           return !(a?.historical && a.mark === 'L');
         })
-        .map((m) => ({ date: m.date, classId: m.classId }));
+        .map((m) => ({
+          date: m.date,
+          classId: m.classId,
+          absenceId: m.absenceId,
+        }));
       const events = [
         ...new Map(
           scheduled.map((d) => [d.date + ':' + d.classId, d]),
         ).values(),
-        ...planned,
+        ...new Map(planned.map((m) => [m.absenceId, m])).values(),
       ].sort((a, b) => a.date.localeCompare(b.date));
       const lastByClass = new Map<string, string>();
       if (sessions === 0 && !future.length) expectedDate = asOf;

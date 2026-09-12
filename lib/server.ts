@@ -15,6 +15,7 @@ import {
   entries,
   cashSummary,
   monthEnd,
+  resolveStudentId,
 } from './domain';
 import { CUTOFF } from './types';
 import imported from '@boh/private-import';
@@ -43,10 +44,11 @@ export function protectWrite(request: Request) {
   if (request.headers.get('sec-fetch-site') === 'cross-site')
     throw new AppError('Cross-site request rejected.', 403);
 }
-export async function body(request: Request) {
+export async function body(request: Request, maxLength = 65000) {
   protectWrite(request);
   const text = await request.text();
-  if (text.length > 65000) throw new AppError('The request is too large.', 413);
+  if (text.length > maxLength)
+    throw new AppError('The request is too large.', 413);
   try {
     return JSON.parse(text);
   } catch {
@@ -164,6 +166,7 @@ const validKinds = [
   'membership',
   'attendance',
   'package',
+  'catalogue',
   'receipt',
   'expense',
   'makeup',
@@ -177,6 +180,7 @@ const validKinds = [
   'task',
 ];
 const fields: Record<string, string[]> = {
+  catalogue: ['label', 'sessions', 'price', 'active', 'notes'],
   student: [
     'name',
     'classId',
@@ -404,7 +408,11 @@ export async function saveRecord(a: Actor, input: any) {
     throw new AppError(
       'Original history is preserved. Add a new dated record instead.',
     );
-  if (p.classId) await related(p.classId, 'class');
+  if (p.classId) {
+    const cl = await related(p.classId, 'class');
+    if (a.role === 'TA' && cl.payload.archived)
+      throw new AppError('Archived classes are read-only.');
+  }
   if (p.studentId) {
     const student = await related(p.studentId, 'student');
     if (
@@ -417,6 +425,18 @@ export async function saveRecord(a: Actor, input: any) {
       );
   }
   let id = old?.id ?? crypto.randomUUID();
+  if (kind === 'catalogue') {
+    p.label = text(p.label, 'package name', true, 150);
+    p.sessions = amount(p.sessions, 'sessions', 1);
+    p.price = amount(p.price, 'price');
+    if (
+      !Number.isSafeInteger(p.sessions) ||
+      p.sessions > 1000 ||
+      !Number.isSafeInteger(p.price)
+    )
+      throw new AppError('Enter whole sessions and whole VND.');
+    p.active = p.active !== false;
+  }
   if (['receipt', 'expense'].includes(kind)) {
     p.date = day(p.date, 'payment date', true);
     if (p.date > today())
@@ -479,8 +499,23 @@ export async function saveRecord(a: Actor, input: any) {
         'Enter a reason before correcting an imported amount.',
       );
   }
+  if (
+    kind === 'expense' &&
+    old?.payload.payrollId &&
+    p.payrollId !== old.payload.payrollId
+  )
+    throw new AppError(
+      'A payroll payment cannot be detached or reassigned. Record an approved adjustment.',
+    );
   if (kind === 'expense' && p.payrollId) {
-    await related(p.payrollId, 'payroll');
+    const payroll = await related(p.payrollId, 'payroll');
+    if (payroll.payload.status !== 'Approved')
+      throw new AppError('Approve payroll before recording its payment.');
+    const paid = entries(await allRecords(), 'expense')
+      .filter((e) => e.id !== old?.id && e.payrollId === p.payrollId)
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    if (paid + p.amount > payroll.payload.net)
+      throw new AppError('Payroll payments exceed the approved net salary.');
     p.category = 'Payroll';
   }
   if (kind === 'payroll') {
@@ -497,6 +532,21 @@ export async function saveRecord(a: Actor, input: any) {
     if (p.net < 0) throw new AppError('Deductions exceed gross salary.');
     if (!['Draft', 'Approved', 'Needs confirmation'].includes(p.status))
       throw new AppError('Choose payroll status.');
+    const termsChanged =
+      old &&
+      ['month', 'name', 'gross', 'deductions', 'employerInsurance'].some(
+        (key) => p[key] !== old.payload[key],
+      );
+    if (old?.payload.status === 'Approved' && termsChanged) p.status = 'Draft';
+    if (p.status === 'Approved' && old?.payload.status !== 'Approved')
+      requireRole(a, ['Director']);
+    const paid = entries(await allRecords(), 'expense').filter(
+      (e) => e.payrollId === old?.id,
+    );
+    if (termsChanged && paid.length)
+      throw new AppError(
+        'Paid payroll is preserved. Record a separately approved adjustment.',
+      );
   }
   if (kind === 'task') {
     p.title = text(p.title, 'task title', true, 160);
@@ -553,12 +603,15 @@ export async function saveRecord(a: Actor, input: any) {
       throw new AppError('Resume date must be after pause date.');
   }
   if (kind === 'class') {
+    p.classId = id;
     p.name = text(p.name, 'class name', true, 100);
     if (
       !Array.isArray(p.weekdays) ||
+      !p.weekdays.length ||
       p.weekdays.some((v: any) => !Number.isInteger(v) || v < 0 || v > 6)
     )
       throw new AppError('Choose weekdays.');
+    p.weekdays = [...new Set(p.weekdays)];
     if (!/^#[0-9a-fA-F]{6}$/.test(p.color))
       throw new AppError('Choose a valid class colour.');
   }
@@ -575,6 +628,21 @@ export async function saveRecord(a: Actor, input: any) {
       throw new AppError('End date must follow start date.');
     if (!['Regular', 'Saturday'].includes(p.schedule))
       throw new AppError('Choose the timetable.');
+    const records = await allRecords();
+    if (
+      (!old || p.from !== old.payload.from || p.until !== old.payload.until) &&
+      entries(records, 'membership').some(
+        (m) =>
+          m.id !== old?.id &&
+          m.studentId === resolveStudentId(records, p.studentId) &&
+          m.classId === p.classId &&
+          (m.from || '0001-01-01') <= (p.until || '9999-12-31') &&
+          (p.from || '0001-01-01') <= (m.until || '9999-12-31'),
+      )
+    )
+      throw new AppError(
+        'This student already has an overlapping class membership. Edit the existing row.',
+      );
   }
   if (kind === 'attendance') {
     if (
@@ -610,7 +678,7 @@ export async function saveRecord(a: Actor, input: any) {
       (member.payload.until && p.date > member.payload.until)
     )
       throw new AppError('Lesson is outside this class membership.');
-    if (!['P', 'T', 'A', 'N'].includes(p.mark))
+    if (!['', 'P', 'T', 'A', 'N'].includes(p.mark))
       throw new AppError('Choose present, late, absent or not scheduled.');
     id = old?.id ?? 'attendance:' + p.membershipId + ':' + p.date;
     if (!old && (await getRecord(id)))
@@ -642,6 +710,8 @@ export async function saveRecord(a: Actor, input: any) {
     p.label = text(p.label, 'package name', true, 150);
     if (!['all', 'class'].includes(p.scope))
       throw new AppError('Choose session allocation.');
+    if (p.scope === 'class' && !p.classId)
+      throw new AppError('Choose a class for this class-specific package.');
     if (
       old?.payload.imported &&
       ['sessions', 'startDate', 'agreedFee', 'studentId', 'scope'].some(
@@ -801,9 +871,13 @@ export async function saveRecord(a: Actor, input: any) {
     kind === 'student' &&
     p.classId &&
     (!old || p.classId !== (old.classId || old.payload.classId))
-      ? day(p.transferDate || today(), 'transfer date', true)
+      ? day(
+          old ? p.transferDate || today() : p.enrollmentDate || today(),
+          'transfer date',
+          true,
+        )
       : null;
-  if (transferDate && transferDate <= CUTOFF)
+  if (old && transferDate && transferDate <= CUTOFF)
     throw new AppError(
       'A new transfer must be after the imported attendance date.',
     );

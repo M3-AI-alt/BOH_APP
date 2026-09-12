@@ -6,6 +6,7 @@ export function accessScope(actor: Actor) {
     actor.userId,
     actor.role,
     actor.active,
+    !!actor.allClasses,
     [...actor.classIds].sort(),
   ]);
 }

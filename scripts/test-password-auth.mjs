@@ -142,6 +142,7 @@ test('anonymous and temporary sessions cannot become an app actor', async () => 
     name: 'Staff',
     role: 'TA',
     classIds: [],
+    allClasses: true,
     active: true,
   });
 });
@@ -281,14 +282,23 @@ test('Hostinger ignores spoofed IP headers while keeping shared and account limi
   const q = setup();
   q.hostingTarget = 'node';
   for (const ip of ['192.0.2.1', '192.0.2.2']) {
-    await native.limitAuth(new Request('https://boh.example.test/api/auth/login', {
-      headers: { 'cf-connecting-ip': ip, 'x-forwarded-for': ip },
-    }), fixture.email);
+    await native.limitAuth(
+      new Request('https://boh.example.test/api/auth/login', {
+        headers: { 'cf-connecting-ip': ip, 'x-forwarded-for': ip },
+      }),
+      fixture.email,
+    );
   }
   assert.equal(q.calls.length, 4);
   assert.deepEqual(q.calls[0], q.calls[2]);
   assert.equal(q.calls[0].args.limit, 60);
   assert.equal(q.calls[1].args.limit, 10);
-  assert.equal(q.calls[0].args.key, await native.hashToken('login:ip:hostinger-shared'));
-  assert.equal(q.calls[1].args.key, await native.hashToken(`login:account:${fixture.email}`));
+  assert.equal(
+    q.calls[0].args.key,
+    await native.hashToken('login:ip:hostinger-shared'),
+  );
+  assert.equal(
+    q.calls[1].args.key,
+    await native.hashToken(`login:account:${fixture.email}`),
+  );
 });

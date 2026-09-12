@@ -706,3 +706,73 @@ test('future-start imported package remains visible without inventing current co
   assert.equal(s.sessions, null);
   assert.equal(s.paymentStatus, 'Needs confirmation');
 });
+
+test('duplicate memberships and makeups cannot double-charge; different classes still count', () => {
+  const rows = [
+    r('student', 's', { name: 'Student' }),
+    r('package', 'p', {
+      studentId: 's',
+      sessions: 24,
+      startDate: '2026-09-09',
+      scope: 'all',
+      agreedFee: 100,
+    }),
+  ];
+  for (const [id, classId] of [
+    ['a', 'c'],
+    ['b', 'c'],
+    ['c', 'other'],
+  ])
+    rows.push(
+      r('attendance', id, {
+        studentId: 's',
+        classId,
+        date: '2026-09-10',
+        mark: 'P',
+      }),
+    );
+  rows.push(
+    r('attendance', 'abs', {
+      studentId: 's',
+      classId: 'c',
+      date: '2026-09-09',
+      mark: 'A',
+    }),
+  );
+  for (const id of ['m1', 'm2'])
+    rows.push(
+      r('makeup', id, {
+        studentId: 's',
+        classId: 'c',
+        date: '2026-09-11',
+        status: 'Completed',
+        absenceId: 'abs',
+      }),
+    );
+  assert.equal(d.getPackageBalances(rows, '2026-09-12').remaining.get('p'), 21);
+});
+test('all-class TA access includes new classes and canonical aliases but no financial data or contacts', () => {
+  const actor = { role: 'TA', active: true, classIds: [], allClasses: true };
+  const rows = [
+    r('class', 'new', { name: 'New class', classId: 'new' }),
+    r('membership', 'm', { studentId: 'old', classId: 'new' }),
+    r('student', 'old', { name: 'Old', canonicalStudentId: 'current' }),
+    r('student', 'current', {
+      name: 'Current',
+      phone: 'private',
+      parent: 'private',
+    }),
+    r('receipt', 'cash', { amount: 100 }),
+    r('catalogue', 'price', { price: 100 }),
+  ];
+  const visible = d.allowedRecords(actor, rows);
+  assert.equal(d.canWrite(actor, 'attendance', 'new'), true);
+  assert.equal(d.canWrite(actor, 'class', 'new'), false);
+  assert.equal(d.canWrite(actor, 'expense'), false);
+  assert.equal(d.entries(visible, 'membership')[0].studentId, 'current');
+  assert.equal(JSON.stringify(visible).includes('private'), false);
+  assert.equal(
+    visible.some((x) => ['receipt', 'catalogue'].includes(x.kind)),
+    false,
+  );
+});

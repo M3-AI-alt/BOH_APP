@@ -319,7 +319,7 @@ export function Attendance(p: ViewProps) {
     return (
       <Empty
         title={t('No classes assigned')}
-        detail={t('Ask the Director to assign your classes in Team & access.')}
+        detail={t('Ask the Director to check class setup.')}
       />
     );
   const members = entries(records, 'membership')
@@ -361,7 +361,8 @@ export function Attendance(p: ViewProps) {
       setSaving('');
     }
   }
-  const canEdit = actor.role === 'Director' || actor.role === 'TA';
+  const canEdit =
+    actor.role === 'Director' || (actor.role === 'TA' && !cl.archived);
   return (
     <>
       <div className="class-bar">
@@ -547,7 +548,7 @@ export function Attendance(p: ViewProps) {
                                   label={st?.name + ' · ' + d}
                                   value={a?.mark ?? ''}
                                   disabled={saving === m.id + d}
-                                  onChange={(v) => v && mark(m, d, v)}
+                                  onChange={(v) => mark(m, d, v)}
                                   options={[
                                     { value: '', label: '—' },
                                     { value: 'P', label: 'P' },
@@ -1111,6 +1112,10 @@ export function Renewals(p: ViewProps) {
 }
 export function Packages(p: ViewProps) {
   const { t, money, packageTitle } = useLanguage();
+  const catalogue = entries(p.snapshot.records, 'catalogue');
+  const prices = catalogue.length
+    ? catalogue.filter((c) => c.active !== false)
+    : priceList;
   const review = useMemo(
     () => studentReview(p.snapshot.records, p.reviewDate),
     [p.snapshot.records, p.reviewDate],
@@ -1126,7 +1131,7 @@ export function Packages(p: ViewProps) {
   return (
     <>
       <div className="price-strip">
-        {priceList.map((x) => (
+        {prices.map((x) => (
           <div key={x.sessions}>
             <strong>
               {x.sessions}
@@ -1730,7 +1735,7 @@ export function Team(p: ViewProps) {
           <strong>{t('Individual accounts. One connected team.')}</strong>
           <p>
             {t(
-              'Staff sign in with their own email and password. Each person also needs a role below. A TA sees only assigned classes; Finance manages money; the Director manages the centre. No shared passwords.',
+              'Staff use individual accounts. TAs manage attendance in all classes; Finance manages money; the Director manages the centre.',
             )}
           </p>
         </div>
@@ -1765,11 +1770,7 @@ export function Team(p: ViewProps) {
               {t(m.role === 'Finance' ? 'Finance manager' : m.role)}
             </Badge>,
             m.role === 'TA'
-              ? (Array.isArray(m.class_ids) ? m.class_ids : [])
-                  .map((id: string) =>
-                    classes.find((c) => c.id === id)?.name.replace('BOH ', ''),
-                  )
-                  .join(', ') || t('None assigned')
+              ? t('All classes · teaching only')
               : t('All classes'),
             <Badge>
               {!m.active
@@ -1807,7 +1808,7 @@ export function Team(p: ViewProps) {
           <strong>{t('Prepare access')}</strong>
           <p>
             {t(
-              'Add the exact sign-in email and role. Assign each TA’s classes using Edit access.',
+              'Add the exact sign-in email and role. TAs automatically receive teaching access to all classes.',
             )}
           </p>
         </div>

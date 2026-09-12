@@ -67,6 +67,7 @@ export async function passwordActor(): Promise<Actor> {
     name: row.name,
     role: row.role,
     classIds: row.class_ids,
+    allClasses: row.role === 'TA',
     active: row.active,
   };
 }
@@ -89,9 +90,10 @@ export async function limitAuth(
   // Only Cloudflare supplies a trusted CF-Connecting-IP. On Hostinger, retain
   // a conservative shared limit plus the independent per-account limit until
   // its verified proxy IP contract is configured. Never trust client IP headers.
-  const ip = env.BOH_HOSTING_TARGET === 'node'
-    ? 'hostinger-shared'
-    : request.headers.get('cf-connecting-ip') || 'unknown-edge';
+  const ip =
+    env.BOH_HOSTING_TARGET === 'node'
+      ? 'hostinger-shared'
+      : request.headers.get('cf-connecting-ip') || 'unknown-edge';
   for (const [bucket, max] of [
     [`${action}:ip:${ip}`, 60],
     [`${action}:account:${email.toLowerCase()}`, 10],
