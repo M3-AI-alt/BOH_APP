@@ -60,6 +60,94 @@ const r = (kind, id, payload) => ({
   revision: 1,
   updatedAt: '',
 });
+test('daily attendance hides inactive and original roster rows while preserving all history', () => {
+  const statuses = [
+    'Active',
+    'Free',
+    'Ends without renewal',
+    'Stopped',
+    'Paused',
+    'Archived',
+    'Transferred',
+    'Roster only',
+  ];
+  const records = statuses.flatMap((status, i) => [
+    r('student', `s${i}`, { name: 'Same name', status }),
+    r('membership', `m${i}`, {
+      studentId: `s${i}`,
+      classId: 'c',
+      position: i,
+      forecast: true,
+    }),
+    r('attendance', `a${i}`, {
+      studentId: `s${i}`,
+      membershipId: `m${i}`,
+      classId: 'c',
+      date: '2026-06-01',
+      mark: 'C',
+    }),
+  ]);
+  records.push(
+    r('membership', 'original', {
+      studentId: 's0',
+      classId: 'c',
+      forecast: false,
+    }),
+  );
+  const before = JSON.stringify(records);
+  assert.deepEqual(
+    d.attendanceRoster(records, 'c', '2026-09-12').map((m) => m.id),
+    ['m0', 'm1', 'm2'],
+  );
+  assert.equal(
+    d.attendanceRoster(records, 'c', '2026-09-12', 'history').length,
+    9,
+  );
+  assert.equal(JSON.stringify(records), before);
+});
+test('attendance follows current membership dates and keeps transfer aliases in history only', () => {
+  const records = [
+    r('student', 's', { status: 'Active', classId: 'new' }),
+    r('student', 'alias', { status: 'Transferred', canonicalStudentId: 's' }),
+    r('membership', 'old-alias', {
+      studentId: 'alias',
+      classId: 'old',
+      forecast: true,
+    }),
+    r('membership', 'old', {
+      studentId: 's',
+      classId: 'old',
+      until: '2026-09-11',
+    }),
+    r('membership', 'new', {
+      studentId: 's',
+      classId: 'new',
+      from: '2026-09-12',
+    }),
+    r('membership', 'extra', {
+      studentId: 's',
+      classId: 'extra',
+      from: '2026-09-12',
+      until: '2026-09-12',
+    }),
+  ];
+  assert.equal(d.attendanceRoster(records, 'old', '2026-09-12').length, 0);
+  assert.equal(d.attendanceRoster(records, 'old', '2026-09-11').length, 1);
+  assert.equal(
+    d.attendanceRoster(records, 'old', '2026-09-12', 'history').length,
+    2,
+  );
+  assert.equal(d.attendanceRoster(records, 'new', '2026-09-11').length, 0);
+  assert.equal(d.attendanceRoster(records, 'new', '2026-09-12').length, 1);
+  assert.equal(d.attendanceRoster(records, 'extra', '2026-09-12').length, 1);
+  assert.equal(d.attendanceRoster(records, 'extra', '2026-09-13').length, 0);
+  const taRecords = d.allowedRecords(
+    { role: 'TA', active: true, allClasses: true, classIds: [] },
+    records,
+  );
+  assert.equal(d.attendanceRoster(taRecords, 'old', '2026-09-12').length, 0);
+  assert.equal(d.attendanceRoster(taRecords, 'new', '2026-09-12').length, 1);
+});
 const sourceReview = await import(
   moduleUrl(
     readFileSync('lib/source-review.ts', 'utf8').replace(

@@ -42,6 +42,7 @@ import { Payroll, AccountantTasks } from './finance-work';
 import { SourceReview } from './source-review';
 import {
   entries,
+  attendanceRoster,
   cashSummary,
   studentReview,
   shiftMonth,
@@ -313,6 +314,7 @@ export function Attendance(p: ViewProps) {
     classes.find((c) => !c.archived) ??
     classes[0];
   const [tab, setTab] = useState('grid'),
+    [rosterScope, setRosterScope] = useState<'current' | 'history'>('current'),
     [saving, setSaving] = useState(''),
     [error, setError] = useState('');
   if (!cl)
@@ -322,9 +324,7 @@ export function Attendance(p: ViewProps) {
         detail={t('Ask the Director to check class setup.')}
       />
     );
-  const members = entries(records, 'membership')
-    .filter((m) => m.classId === cl.id)
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  const members = attendanceRoster(records, cl.id, today(), rosterScope);
   const attendance = entries(records, 'attendance').filter(
     (a) => a.classId === cl.id && a.date?.startsWith(p.month),
   );
@@ -405,6 +405,28 @@ export function Attendance(p: ViewProps) {
           <TabsTrigger value="calendar">{t('Calendar')}</TabsTrigger>
         </TabsList>
         <TabsContent value="grid">
+          <div className="class-bar">
+            <Choice
+              label={t('Attendance list')}
+              value={rosterScope}
+              onChange={(value) =>
+                setRosterScope(value as 'current' | 'history')
+              }
+              options={[
+                { value: 'current', label: t('Current students') },
+                { value: 'history', label: t('All attendance history') },
+              ]}
+            />
+            <p className="muted">
+              {rosterScope === 'current'
+                ? t(
+                    'Only current students. Stopped, paused and old class rows stay in history.',
+                  )
+                : t(
+                    'Read-only history. No attendance, packages or payments have been deleted.',
+                  )}
+            </p>
+          </div>
           <div className="attendance-guide">
             <span>
               <b className="green-text">P</b> {t('Present')}
@@ -432,16 +454,26 @@ export function Attendance(p: ViewProps) {
                 <h2>{cl.name}</h2>
                 <p>
                   {monthLabel(p.month)}
-                  {t('· click a new lesson cell to mark attendance')}
+                  {rosterScope === 'current' &&
+                    t('· click a new lesson cell to mark attendance')}
                 </p>
               </div>
               <span className="save-status" aria-live="polite">
                 {saving
                   ? t('Saving attendance…')
-                  : t('Changes save automatically')}
+                  : rosterScope === 'history'
+                    ? t('Read-only history')
+                    : t('Changes save automatically')}
               </span>
             </div>
-            {dates.length ? (
+            {!ms.length ? (
+              <Empty
+                title={t('No students in this view')}
+                detail={t(
+                  'Clear your search, choose another class or view all attendance history.',
+                )}
+              />
+            ) : dates.length ? (
               <Table className="attendance-table">
                 <TableHeader>
                   <TableRow>
@@ -531,10 +563,13 @@ export function Attendance(p: ViewProps) {
                           const a = lookup.get(m.id + ':' + d);
                           const editable =
                             canEdit &&
+                            rosterScope === 'current' &&
                             d > (p.snapshot.manifest?.cutoff || CUTOFF) &&
                             !a?.historical &&
                             m.sourceStudentId === m.studentId &&
-                            !['Archived', 'Transferred'].includes(st?.status) &&
+                            ['Active', 'Free', 'Ends without renewal'].includes(
+                              st?.status,
+                            ) &&
                             d <= today() &&
                             (!m.from || d >= m.from) &&
                             (!m.until || d <= m.until);

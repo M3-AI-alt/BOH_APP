@@ -66,6 +66,31 @@ export function receiptStudentIds(receipt: any): string[] {
     ),
   ];
 }
+// Daily teaching uses current memberships, never the complete imported archive.
+// Keep the historical rows intact so old marks retain their original identity.
+export function attendanceRoster(
+  records: DataRecord[],
+  classId: string,
+  asOf: string,
+  scope: 'current' | 'history' = 'current',
+) {
+  const students = new Map(entries(records, 'student').map((s) => [s.id, s]));
+  return entries(records, 'membership')
+    .filter((m) => m.classId === classId)
+    .filter((m) => {
+      if (scope === 'history') return true;
+      const student = students.get(m.studentId);
+      return (
+        student &&
+        ['Active', 'Free', 'Ends without renewal'].includes(student.status) &&
+        m.forecast !== false &&
+        m.sourceStudentId === m.studentId &&
+        (!m.from || m.from <= asOf) &&
+        (!m.until || m.until >= asOf)
+      );
+    })
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
 export function studentReceiptShare(
   receipt: any,
   studentId: string,

@@ -107,6 +107,42 @@ test('a linked payroll payment cannot be detached or reassigned', async () => {
     );
   assert.equal(state.calls.filter((c) => c.op === 'commit_record').length, 0);
 });
+test('stale attendance screens cannot add marks for stopped or historical roster students', async () => {
+  for (const [status, forecast] of [
+    ['Stopped', true],
+    ['Paused', true],
+    ['Roster only', false],
+    ['Active', false],
+  ]) {
+    const state = setup();
+    state.records[0].payload.status = status;
+    state.records.push({
+      id: 'm',
+      kind: 'membership',
+      studentId: st.id,
+      classId: 'c1',
+      payload: { studentId: st.id, classId: 'c1', forecast },
+    });
+    await assert.rejects(
+      server.saveRecord(
+        { ...actor, role: 'TA', allClasses: true },
+        {
+          kind: 'attendance',
+          payload: {
+            membershipId: 'm',
+            studentId: st.id,
+            classId: 'c1',
+            date: '2026-09-10',
+            mark: 'P',
+            note: '',
+          },
+        },
+      ),
+      /not on the current attendance list/,
+    );
+    assert.equal(state.calls.filter((c) => c.op === 'commit_record').length, 0);
+  }
+});
 test('TA support must belong to the assigned class on create and edit', async () => {
   const ta = { ...actor, role: 'TA', classIds: ['c1'] };
   const payload = {

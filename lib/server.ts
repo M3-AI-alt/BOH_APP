@@ -658,6 +658,16 @@ export async function saveRecord(a: Actor, input: any) {
       throw new AppError(
         'Restore this student before recording new attendance.',
       );
+    if (
+      !old &&
+      (!['Active', 'Free', 'Ends without renewal'].includes(
+        student.payload.status,
+      ) ||
+        member.payload.forecast === false)
+    )
+      throw new AppError(
+        'This student is not on the current attendance list. Review their status and class membership first.',
+      );
     if (member.studentId !== p.studentId || member.classId !== p.classId)
       throw new AppError('Student does not match this class row.');
     p.date = day(p.date, 'lesson date', true);

@@ -136,6 +136,49 @@ test('locale parsing is allowlisted and preferences do not contain identity or a
   assert.match(provider, /Max-Age=31536000/);
   assert.match(provider, /document\.documentElement\.lang = locale/);
 });
+test('Attendance opens with current students only for Director and TA in both languages', () => {
+  const extra = [
+    record('student', 'stopped', {
+      name: 'Stopped archive fixture',
+      status: 'Stopped',
+      classId: 'c1',
+    }),
+    record('membership', 'stopped-m', {
+      studentId: 'stopped',
+      classId: 'c1',
+      forecast: true,
+    }),
+    record('student', 'historical', {
+      name: 'Old roster fixture',
+      status: 'Roster only',
+      classId: 'c1',
+    }),
+    record('membership', 'history-m', {
+      studentId: 'historical',
+      classId: 'c1',
+      forecast: false,
+    }),
+  ];
+  const snapshot = { ...props.snapshot, records: [...records, ...extra] };
+  const before = JSON.stringify(snapshot.records);
+  for (const role of ['Director', 'TA'])
+    for (const locale of ['en', 'vi']) {
+      const html = render(locale, i.Attendance, {
+        ...props,
+        snapshot: {
+          ...snapshot,
+          actor: { ...snapshot.actor, role, allClasses: true },
+        },
+      });
+      assert.match(html, /Nguyễn Test/);
+      assert.doesNotMatch(html, /Stopped archive fixture|Old roster fixture/);
+      assert.match(
+        html,
+        locale === 'en' ? /Current students/ : /Học viên hiện tại/,
+      );
+    }
+  assert.equal(JSON.stringify(snapshot.records), before);
+});
 
 test('Vietnamese messages preserve interpolation, whitespace and unknown original text', () => {
   assert.equal(
