@@ -180,11 +180,32 @@ export function canWrite(actor: Actor, kind: string, classId = '') {
   );
 }
 export function allowedRecords(actor: Actor, records: DataRecord[]) {
-  if (actor.role !== 'TA')
-    return records.filter(
-      (r) =>
-        r.kind !== 'source' && (actor.role === 'Director' || r.kind !== 'lead'),
+  if (!actor.active) return [];
+  if (actor.role === 'Director')
+    return records.filter((r) => r.kind !== 'source');
+  if (actor.role === 'Finance')
+    return records.filter((r) =>
+      [
+        'student',
+        'class',
+        'membership',
+        'attendance',
+        'package',
+        'catalogue',
+        'receipt',
+        'expense',
+        'makeup',
+        'support',
+        'commitment',
+        'calendar',
+        'close',
+        'reconciliation',
+        'payroll',
+        'task',
+        'unmatched',
+      ].includes(r.kind),
     );
+  if (actor.role !== 'TA') return [];
   const membership = records.filter(
     (r) =>
       r.kind === 'membership' &&

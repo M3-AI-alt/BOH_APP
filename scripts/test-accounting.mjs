@@ -65,6 +65,59 @@ test('CSV retains IDs, embedded quotes, Unicode and source text without evaluati
   ])
     assert.throws(() => domain.parseSourceCsv(csv));
 });
+test('bill payment uses a single atomic RPC and cannot forge approval or bank verification', async () => {
+  globalThis.__accountingCalls = [];
+  const input = command('pay', {
+    revision: 1,
+    payload: {
+      date: '2026-09-12',
+      amount: 100,
+      account: 'QA bank',
+      category: 'Rent',
+      evidence: 'QA transfer',
+      reconciled: true,
+      approved_by: 'forged',
+    },
+  });
+  await api.accountingCommand(finance, input);
+  assert.equal(globalThis.__accountingCalls.length, 1);
+  assert.equal(globalThis.__accountingCalls[0].op, 'fin_pay');
+  assert.equal(
+    globalThis.__accountingCalls[0].args.payload.reconciled,
+    undefined,
+  );
+  assert.equal(
+    globalThis.__accountingCalls[0].args.payload.approved_by,
+    undefined,
+  );
+  for (const change of [
+    { amount: -1 },
+    { amount: 1.5 },
+    { date: '2026-02-30' },
+    { category: 'Payroll' },
+    { account: 'x'.repeat(101) },
+  ])
+    await assert.rejects(
+      api.accountingCommand(finance, {
+        ...input,
+        payload: { ...input.payload, ...change },
+      }),
+    );
+});
+test('all-record exports and approval queues remain finance-only read operations', async () => {
+  globalThis.__accountingCalls = [];
+  await api.listAccounting(
+    finance,
+    new URLSearchParams('export=1&month=2026-08&status=Draft'),
+  );
+  await api.listAccounting(director, new URLSearchParams('queue=1'));
+  assert.deepEqual(
+    globalThis.__accountingCalls.map((c) => c.op),
+    ['fin_export', 'fin_queue'],
+  );
+  assert.equal(globalThis.__accountingCalls[0].args.month, '2026-08');
+  assert.equal(globalThis.__accountingCalls[0].args.status, 'Draft');
+});
 test('Explicit VND conventions reject ambiguous grouping, fractions and overflows', () => {
   assert.equal(domain.sourceAmount('1.200.000', 'vn'), 1200000);
   assert.equal(domain.sourceAmount('1,200,000.00', 'en'), 1200000);

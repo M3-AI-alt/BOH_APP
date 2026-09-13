@@ -13,6 +13,13 @@ const url = (code) =>
     }).outputText,
   ).toString('base64');
 const types = url(fs.readFileSync('lib/types.ts', 'utf8'));
+const keyModule = url(fs.readFileSync('lib/command-key.ts', 'utf8'));
+const fieldUrl = url(fs.readFileSync('lib/entry-fields.ts', 'utf8'));
+const experienceUrl = url(
+  fs
+    .readFileSync('lib/entry-experience.ts', 'utf8')
+    .replace("from './entry-fields'", `from '${fieldUrl}'`),
+);
 const domain = url(
   fs
     .readFileSync('lib/domain.ts', 'utf8')
@@ -46,6 +53,7 @@ const serverUrl = url(
     .replaceAll("from './password-auth'", `from '${nativeUrl}'`)
     .replaceAll("from './storage'", `from '${storage}'`)
     .replaceAll("from './types'", `from '${types}'`)
+    .replaceAll("from './command-key'", `from '${keyModule}'`)
     .replaceAll("from './domain'", `from '${domain}'`)
     .replace(
       "import imported from '@boh/private-import';",
@@ -53,14 +61,50 @@ const serverUrl = url(
     ),
 );
 const server = await import(serverUrl);
+const draftKindsUrl = url(fs.readFileSync('lib/drafts.ts', 'utf8'));
+const draftsUrl = url(
+  fs
+    .readFileSync('lib/drafts-server.ts', 'utf8')
+    .replaceAll("from './server'", `from '${serverUrl}'`)
+    .replaceAll("from './storage'", `from '${storage}'`)
+    .replaceAll("from './drafts'", `from '${draftKindsUrl}'`),
+);
+const accountingDomainUrl = url(fs.readFileSync('lib/accounting.ts', 'utf8'));
+const filtersUrl = url(
+  fs
+    .readFileSync('lib/record-filters.ts', 'utf8')
+    .replace("from './domain'", `from '${domain}'`),
+);
+const viewsUrl = url(
+  fs
+    .readFileSync('lib/saved-views-server.ts', 'utf8')
+    .replace("from './server'", `from '${serverUrl}'`)
+    .replace("from './storage'", `from '${storage}'`)
+    .replace("from './record-filters'", `from '${filtersUrl}'`),
+);
+const accountingUrl = url(
+  fs
+    .readFileSync('lib/accounting-server.ts', 'utf8')
+    .replaceAll("from './server'", `from '${serverUrl}'`)
+    .replaceAll("from './storage'", `from '${storage}'`)
+    .replaceAll("from './accounting'", `from '${accountingDomainUrl}'`),
+);
 const route = async (path) =>
   import(
     url(
       fs
         .readFileSync(path, 'utf8')
         .replaceAll("from '@/lib/server'", `from '${serverUrl}'`)
+        .replaceAll("from '@/lib/entry-experience'", `from '${experienceUrl}'`)
+        .replaceAll("from '@/lib/domain'", `from '${domain}'`)
         .replaceAll("from '@/lib/password-auth'", `from '${nativeUrl}'`)
-        .replaceAll("from '@/lib/storage'", `from '${storage}'`),
+        .replaceAll("from '@/lib/storage'", `from '${storage}'`)
+        .replaceAll("from '@/lib/drafts-server'", `from '${draftsUrl}'`)
+        .replaceAll("from '@/lib/saved-views-server'", `from '${viewsUrl}'`)
+        .replaceAll(
+          "from '@/lib/accounting-server'",
+          `from '${accountingUrl}'`,
+        ),
     )
   );
 const login = await route('app/api/auth/login/route.ts'),
@@ -156,14 +200,110 @@ test('all record API entrypoints reject temporary-password access', async () => 
     'import',
     'student-action',
     'student-link',
+    'drafts',
+    'accounting',
+    'views',
   ]) {
     const file = `app/api/${path}/route.ts`;
     if (!fs.existsSync(file)) continue;
-    const api = await route(file),
-      fn = api.POST || api.GET;
-    const response = await fn(req(path, {}));
-    assert.equal(response.status, 428, path);
+    const api = await route(file);
+    for (const fn of [api.GET, api.POST].filter(Boolean)) {
+      const response = await fn(req(path, {}));
+      assert.equal(response.status, 428, path);
+    }
   }
+});
+test('drafts and finance read/write routes reject anonymous, inactive and TA access before storage', async () => {
+  for (const session of [
+    null,
+    { ...fixture, setup_only: false, must_change_password: false },
+    {
+      ...fixture,
+      role: 'Finance',
+      active: false,
+      setup_only: false,
+      must_change_password: false,
+    },
+  ]) {
+    const q = setup();
+    q.session = session;
+    for (const path of ['drafts', 'accounting']) {
+      const api = await route('app/api/' + path + '/route.ts');
+      for (const fn of [api.GET, api.POST]) {
+        const response = await fn(req(path, { operation: 'pay' }));
+        assert.equal(response.status, session ? 403 : 401);
+        assert.match(response.headers.get('cache-control'), /no-store/);
+      }
+    }
+    assert.equal(
+      q.calls.every((c) => c.op === 'auth_session'),
+      true,
+    );
+  }
+});
+test('saved-view API rechecks role and binds ownership independently of client input', async () => {
+  const api = await route('app/api/views/route.ts');
+  for (const session of [
+    null,
+    { ...fixture, setup_only: false, must_change_password: false },
+    {
+      ...fixture,
+      role: 'Finance',
+      active: false,
+      setup_only: false,
+      must_change_password: false,
+    },
+  ]) {
+    const q = setup();
+    q.session = session;
+    const result = await api.GET(
+      new Request('https://boh.example/api/views?module=receipts'),
+    );
+    assert.equal(result.status, session ? 403 : 401);
+    assert.ok(q.calls.every((c) => c.op === 'auth_session'));
+  }
+  const q = setup();
+  q.session = {
+    ...fixture,
+    role: 'Finance',
+    setup_only: false,
+    must_change_password: false,
+  };
+  const body = {
+    operation: 'save',
+    module: 'receipts',
+    id: crypto.randomUUID(),
+    name: 'Private',
+    roles: [],
+    owner_id: 'another-account',
+    actorId: 'another-account',
+    spec: { query: '', facets: { account: ['Cash'] }, columns: ['amount'] },
+  };
+  assert.equal((await api.POST(req('views', body))).status, 200);
+  assert.equal(
+    q.calls.find((c) => c.op === 'view_save').args.actorId,
+    fixture.user_id,
+  );
+  assert.equal(
+    (await api.POST(req('views', { ...body, roles: ['Director'] }))).status,
+    403,
+  );
+  assert.equal(
+    (await api.GET(new Request('https://boh.example/api/views?module=leads')))
+      .status,
+    403,
+  );
+  assert.equal(
+    (
+      await api.POST(
+        req('views', {
+          ...body,
+          spec: { ...body.spec, facets: { password: ['secret'] } },
+        }),
+      )
+    ).status,
+    400,
+  );
 });
 test('login normalizes email, ignores requested role, rate-limits first and sends only opaque cookie', async () => {
   const q = setup();

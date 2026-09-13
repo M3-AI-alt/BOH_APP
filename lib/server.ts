@@ -19,6 +19,7 @@ import {
 } from './domain';
 import { CUTOFF } from './types';
 import imported from '@boh/private-import';
+import { commandKey } from './command-key';
 
 export class AppError extends Error {
   constructor(
@@ -32,7 +33,7 @@ export async function actor(): Promise<Actor> {
   return passwordActor();
 }
 export function requireRole(a: Actor, roles: string[]) {
-  if (!roles.includes(a.role))
+  if (!a.active || !roles.includes(a.role))
     throw new AppError('Your role cannot perform this action.', 403);
 }
 export function protectWrite(request: Request) {
@@ -113,11 +114,16 @@ export async function snapshot(a: Actor) {
     ]);
   const manifest = manifestText ? JSON.parse(manifestText) : imported.manifest;
   const sourceRefresh = refreshText ? JSON.parse(refreshText) : null;
+  const records = allowedRecords(a, data);
+  const readableIds = new Set(records.map((r) => r.id));
   return {
     actor: a,
-    records: allowedRecords(a, data),
+    records,
     members,
-    activity,
+    activity:
+      a.role === 'Director'
+        ? activity
+        : activity.filter((event: any) => readableIds.has(event.record_id)),
     manifest:
       a.role === 'TA'
         ? { cutoff: sourceRefresh?.dataDate || CUTOFF }
@@ -370,8 +376,58 @@ export async function linkStudentRecord(a: Actor, input: any) {
   );
 }
 export async function saveRecord(a: Actor, input: any) {
-  const command = await prepareRecord(a, input);
-  return decodeRecord(await storeCall('commit_record', command));
+  // Older clients remain compatible; new forms carry a stable retry identifier.
+  if (!input.commandId) {
+    const command = await prepareRecord(a, input);
+    return decodeRecord(await storeCall('commit_record', command));
+  }
+  if (
+    typeof input.commandId !== 'string' ||
+    !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(input.commandId)
+  )
+    throw new AppError('Refresh the form before saving.');
+  if (!canWrite(a, input.kind, input.payload?.classId || ''))
+    throw new AppError('Your role cannot edit this record.', 403);
+  const {
+    draftId: _draftId,
+    draftRevision: _draftRevision,
+    ...businessInput
+  } = input;
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(commandKey(businessInput)),
+  );
+  const requestHash = Array.from(new Uint8Array(digest), (v) =>
+    v.toString(16).padStart(2, '0'),
+  ).join('');
+  if (
+    input.draftId &&
+    (typeof input.draftId !== 'string' ||
+      !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(input.draftId) ||
+      !Number.isSafeInteger(input.draftRevision) ||
+      input.draftRevision < 1)
+  )
+    throw new AppError('Refresh the draft.');
+  const args = {
+    actorId: a.userId,
+    commandId: input.commandId,
+    kind: input.kind,
+    classId: input.payload?.classId || '',
+    requestHash,
+    draftId: input.draftId || null,
+    draftRevision: input.draftRevision ?? null,
+  };
+  const previous = await storeCall('entry_result', args);
+  if (previous) return decodeRecord(previous);
+  try {
+    const command = await prepareRecord(a, input, input.commandId);
+    return decodeRecord(await storeCall('entry_commit', { ...args, command }));
+  } catch (error) {
+    // Another identical request may have committed between our lookup and validation.
+    const committed = await storeCall('entry_result', args).catch(() => null);
+    if (committed) return decodeRecord(committed);
+    throw error;
+  }
 }
 /** Shared, side-effect-free validation for forms and bulk preview. IDs are server supplied. */
 export async function prepareRecord(
@@ -622,6 +678,8 @@ export async function prepareRecord(
     p.resumeDate = day(p.resumeDate, 'resume date');
     if (p.resumeDate && p.pauseFrom && p.resumeDate < p.pauseFrom)
       throw new AppError('Resume date must be after pause date.');
+    if (p.status === 'Active' && p.pauseFrom && !p.resumeDate)
+      throw new AppError('Enter the return date to end this pause.');
   }
   if (kind === 'class') {
     p.classId = id;

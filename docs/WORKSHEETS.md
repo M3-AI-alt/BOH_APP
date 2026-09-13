@@ -1,5 +1,7 @@
 # Self-service worksheets
 
+For the local workspace upgrade and explicit outstanding modules, see [implementation status](WORKSPACE-IMPLEMENTATION.md). Existing templates described here remain supported; new planned modules are not yet available as worksheet tasks.
+
 Open **Import & export** in BOH. Select a task to open its manual entry form, download an Excel/CSV template, preview an upload, or export saved records.
 
 Supported tasks: students, leads, classes, class memberships, calendar changes, attendance, makeups, free support, package catalogue, student packages, collections, expenses, commitments, payroll drafts, reconciliation reviews and tasks.

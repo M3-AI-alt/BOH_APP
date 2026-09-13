@@ -2,6 +2,8 @@
 
 This is the first tested foundation release, **not completion of the full migration or official accounting activation**.
 
+The following describes the 12 September baseline. The next **local, not deployed** increment adds full filtered exports, linked bill-payment recording, private entry drafts and a repaired history query. See [current implementation status](WORKSPACE-IMPLEMENTATION.md) for its tests, rollout boundary and remaining plan.
+
 ## Delivered
 
 - Permanent student identities retained; backdated enrollment creates the first class membership on the entered date.

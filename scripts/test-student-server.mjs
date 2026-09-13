@@ -13,17 +13,20 @@ const moduleUrl = (code) =>
     }).outputText,
   ).toString('base64');
 const types = moduleUrl(fs.readFileSync('lib/types.ts', 'utf8'));
+const keyModule = moduleUrl(fs.readFileSync('lib/command-key.ts', 'utf8'));
+const { commandKey } = await import(keyModule);
 const domain = moduleUrl(
   fs
     .readFileSync('lib/domain.ts', 'utf8')
     .replaceAll("from './types'", `from '${types}'`),
 );
 const storage = moduleUrl(
-  `export class StorageError extends Error{};export const findRecord=async id=>globalThis.__serverQA.records.find(r=>r.id===id)||null;export const listRecords=async()=>globalThis.__serverQA.records;export const decodeRecord=r=>r;export const storeCall=async(op,args)=>{globalThis.__serverQA.calls.push({op,args});if(op==='commit_record')return {...args.record,revision:2};if(op==='list_records')return (globalThis.__serverQA.sourceRows||[]).slice(args.offset||0,(args.offset||0)+args.limit);if(op==='get_setting')return JSON.stringify({dataDate:'2026-09-09'});return {ok:true};};`,
+  `export class StorageError extends Error{};export const findRecord=async id=>globalThis.__serverQA.records.find(r=>r.id===id)||null;export const listRecords=async()=>globalThis.__serverQA.records;export const decodeRecord=r=>r;export const storeCall=async(op,args)=>{globalThis.__serverQA.calls.push({op,args});if(globalThis.__serverQA.respond)return globalThis.__serverQA.respond(op,args);if(op==='commit_record')return {...args.record,revision:2};if(op==='list_records')return (globalThis.__serverQA.sourceRows||[]).slice(args.offset||0,(args.offset||0)+args.limit);if(op==='get_setting')return JSON.stringify({dataDate:'2026-09-09'});return {ok:true};};`,
 );
 const code = fs
   .readFileSync('lib/server.ts', 'utf8')
   .replaceAll("from './types'", `from '${types}'`)
+  .replaceAll("from './command-key'", `from '${keyModule}'`)
   .replaceAll("from './domain'", `from '${domain}'`)
   .replaceAll("from './storage'", `from '${storage}'`)
   .replace("import { env } from 'cloudflare:workers';", 'const env={};')
@@ -72,6 +75,139 @@ const setup = () =>
     ],
     calls: [],
   });
+test('cached entry survives saved-draft recovery with the same business hash', async () => {
+  const state = setup();
+  state.respond = async () => ({ id: 'original-cash', kind: 'expense' });
+  const input = {
+    kind: 'expense',
+    commandId: crypto.randomUUID(),
+    payload: {
+      amount: 100,
+      description: 'Original',
+      allocations: [{ studentId: 's', amount: 100 }],
+    },
+    reason: '',
+  };
+  const resumed = {
+    reason: '',
+    payload: {
+      allocations: [{ amount: 100, studentId: 's' }],
+      description: 'Original',
+      amount: 100,
+    },
+    commandId: input.commandId,
+    kind: 'expense',
+  };
+  assert.equal(
+    commandKey(input),
+    commandKey(resumed),
+    'JSONB key reordering keeps the client retry identity',
+  );
+  assert.equal((await server.saveRecord(actor, input)).id, 'original-cash');
+  assert.equal(
+    (
+      await server.saveRecord(actor, {
+        ...resumed,
+        draftId: crypto.randomUUID(),
+        draftRevision: 2,
+      })
+    ).id,
+    'original-cash',
+  );
+  assert.equal(
+    state.calls[0].args.requestHash,
+    state.calls[1].args.requestHash,
+  );
+  assert.equal(
+    state.calls.every((c) => c.op === 'entry_result'),
+    true,
+  );
+});
+test('a concurrent committed entry is recovered after local revision validation loses the race', async () => {
+  const state = setup();
+  let n = 0;
+  state.respond = async (op) =>
+    op === 'entry_result'
+      ? ++n === 1
+        ? null
+        : { id: st.id, revision: 2 }
+      : null;
+  const saved = await server.saveRecord(actor, {
+    kind: 'student',
+    id: st.id,
+    revision: 0,
+    payload: { name: 'Test' },
+    commandId: crypto.randomUUID(),
+  });
+  assert.equal(saved.revision, 2);
+  assert.equal(n, 2);
+  assert.equal(
+    state.calls.some((c) => c.op === 'entry_commit'),
+    false,
+  );
+});
+test('normal reconciliation preserves the material shape of a bill-generated expense', async () => {
+  const state = setup();
+  const payload = {
+    date: '2026-09-12',
+    month: '2026-09',
+    amount: 60,
+    account: 'QA bank',
+    category: 'Rent',
+    description: 'Synthetic bill',
+    reference: 'QA transfer',
+    name: '',
+    notes: '',
+    documentId: crypto.randomUUID(),
+    reconciled: false,
+  };
+  state.records.push({
+    id: 'bill-cash',
+    kind: 'expense',
+    date: payload.date,
+    classId: '',
+    studentId: '',
+    revision: 1,
+    payload,
+  });
+  const command = await server.prepareRecord(
+    { ...actor, role: 'Finance' },
+    {
+      kind: 'expense',
+      id: 'bill-cash',
+      revision: 1,
+      payload: { reconciled: true },
+    },
+  );
+  assert.deepEqual(command.record.payload, { ...payload, reconciled: true });
+});
+test('Finance snapshot history excludes inaccessible admissions and staff changes', async () => {
+  const state = setup();
+  state.records.push({
+    id: 'lead-private',
+    kind: 'lead',
+    payload: { name: 'Private inquiry' },
+  });
+  state.respond = async (op) =>
+    op === 'list_activity'
+      ? [
+          { record_id: 'lead-private', after: { name: 'Private inquiry' } },
+          { record_id: st.id, after: { name: 'Test Student' } },
+          { record_id: 'staff-secret', after: { email: 'hidden' } },
+        ]
+      : op === 'get_setting'
+        ? '{}'
+        : [];
+  const result = await server.snapshot({ ...actor, role: 'Finance' });
+  assert.deepEqual(
+    result.activity.map((e) => e.record_id),
+    [st.id],
+  );
+  assert.equal(
+    result.records.some((r) => r.kind === 'lead'),
+    false,
+  );
+});
 test('a linked payroll payment cannot be detached or reassigned', async () => {
   const state = setup();
   state.records.push({

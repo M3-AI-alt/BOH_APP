@@ -134,6 +134,26 @@ test('bulk preview validates real record rules and makes no writes', async () =>
   assert.equal(p.rows[0].payload.packageId, 'p1');
   assert.equal(globalThis.__bulk.saved, 0);
 });
+test('student worksheets enforce the same return-date rule as manual profiles', async () => {
+  setup();
+  const row = {
+    entryKey: 'student-pause',
+    name: 'New returning student',
+    status: 'Active',
+    classId: 'Class A',
+    pauseFrom: '2026-08-01',
+  };
+  const invalid = await b.bulkPreview(actor, 'student', csv('student', [row]));
+  assert.equal(invalid.rows[0].status, 'Needs correction');
+  assert.match(JSON.stringify(invalid.rows[0]), /return date/);
+  assert.equal(globalThis.__bulk.saved, 0);
+  const valid = await b.bulkPreview(
+    actor,
+    'student',
+    csv('student', [{ ...row, resumeDate: '2026-09-01' }]),
+  );
+  assert.equal(valid.rows[0].status, 'Ready');
+});
 test('repeat and concurrent imports create each receipt only once', async () => {
   setup();
   const data = csv('receipt', [receipt()]);

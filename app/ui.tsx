@@ -26,6 +26,7 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { Search, Inbox } from 'lucide-react';
+import { cleanSearch } from '@/lib/domain';
 export function Choice({
   value,
   onChange,
@@ -34,6 +35,9 @@ export function Choice({
   disabled = false,
   id,
   translateOptions = false,
+  invalid,
+  describedBy,
+  required,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -42,6 +46,9 @@ export function Choice({
   disabled?: boolean;
   id?: string;
   translateOptions?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  required?: boolean;
 }) {
   const { t } = useLanguage();
   const display = (text: string) => (translateOptions ? t(text) : text);
@@ -51,7 +58,14 @@ export function Choice({
       onValueChange={(v) => onChange(v === '__none' ? '' : String(v ?? ''))}
       disabled={disabled}
     >
-      <SelectTrigger id={id} aria-label={t(label)} className="choice">
+      <SelectTrigger
+        id={id}
+        aria-label={t(label)}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+        aria-required={required}
+        className="choice"
+      >
         <SelectValue>
           {display(options.find((o) => o.value === value)?.label || t(label))}
         </SelectValue>
@@ -72,33 +86,68 @@ export function Picker({
   options,
   label,
   id,
+  invalid,
+  describedBy,
+  required,
+  disabled = false,
+  emptyText,
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { id: string; label: string }[];
+  options: {
+    id: string;
+    label: string;
+    secondary?: string;
+    aliases?: string[];
+    disabledReason?: string;
+  }[];
   label: string;
   id?: string;
+  invalid?: boolean;
+  describedBy?: string;
+  required?: boolean;
+  disabled?: boolean;
+  emptyText?: string;
 }) {
   const { t } = useLanguage();
   return (
     <Combobox
       items={options}
+      disabled={disabled}
+      filter={(item, query) =>
+        cleanSearch(
+          [item.label, item.secondary, ...(item.aliases || [])].join(' '),
+        ).includes(cleanSearch(query))
+      }
       value={options.find((o) => o.id === value) ?? null}
-      onValueChange={(v) => onChange(v?.id ?? '')}
+      onValueChange={(v) => {
+        if (!v?.disabledReason) onChange(v?.id ?? '');
+      }}
       itemToStringLabel={(o) => o.label}
     >
       <ComboboxInput
         id={id}
         aria-label={t(label)}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+        aria-required={required}
         placeholder={t(label)}
         showClear
       />
       <ComboboxContent>
-        <ComboboxEmpty>{t('No matching records')}</ComboboxEmpty>
+        <ComboboxEmpty>{t(emptyText || 'No matching records')}</ComboboxEmpty>
         <ComboboxList>
           {(item: any) => (
-            <ComboboxItem key={item.id} value={item}>
-              {item.label}
+            <ComboboxItem
+              key={item.id}
+              value={item}
+              disabled={!!item.disabledReason}
+            >
+              <span className="entry-option">
+                <span>{item.label}</span>
+                {item.secondary && <small>{item.secondary}</small>}
+                {item.disabledReason && <small>{t(item.disabledReason)}</small>}
+              </span>
             </ComboboxItem>
           )}
         </ComboboxList>
@@ -218,26 +267,32 @@ export function Empty({
 export function DataTable({
   headings,
   rows,
+  visibleColumns,
 }: {
   headings: string[];
   rows: ReactNode[][];
+  visibleColumns?: number[];
 }) {
   const { t } = useLanguage();
   return rows.length ? (
     <Table>
       <TableHeader>
         <TableRow>
-          {headings.map((h, i) => (
-            <TableHead key={i}>{t(h)}</TableHead>
-          ))}
+          {headings.map((h, i) =>
+            !visibleColumns || visibleColumns.includes(i) ? (
+              <TableHead key={i}>{t(h)}</TableHead>
+            ) : null,
+          )}
         </TableRow>
       </TableHeader>
       <TableBody>
         {rows.map((r, i) => (
           <TableRow key={i}>
-            {r.map((c, j) => (
-              <TableCell key={j}>{c}</TableCell>
-            ))}
+            {r.map((c, j) =>
+              !visibleColumns || visibleColumns.includes(j) ? (
+                <TableCell key={j}>{c}</TableCell>
+              ) : null,
+            )}
           </TableRow>
         ))}
       </TableBody>

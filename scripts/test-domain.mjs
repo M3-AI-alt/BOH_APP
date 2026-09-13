@@ -21,9 +21,9 @@ test('role home pages and scope invalidation are explicit, including class remov
     active: true,
     classIds: ['a', 'b'],
   };
-  assert.equal(access.homeView('TA'), 'Attendance');
-  assert.equal(access.homeView('Finance'), 'Finance');
-  assert.equal(access.homeView('Director'), 'Overview');
+  assert.equal(access.homeView('TA'), 'Today');
+  assert.equal(access.homeView('Finance'), 'Today');
+  assert.equal(access.homeView('Director'), 'Today');
   assert.equal(
     access.accessScope(actor),
     access.accessScope({ ...actor, classIds: ['b', 'a'] }),

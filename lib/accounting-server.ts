@@ -24,13 +24,25 @@ export async function listAccounting(a: Actor, q: URLSearchParams) {
     throw new AppError('Choose a valid period.');
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1e6)
     throw new AppError('Invalid page.');
-  return storeCall('fin_list', {
-    actorId: a.userId,
-    tab: q.get('tab') === 'imports' ? 'imports' : 'documents',
-    status: (q.get('status') || '').slice(0, 40),
-    offset,
-    month,
-  });
+  const id = q.get('id');
+  if (id && !uuid(id)) throw new AppError('Choose a document.');
+  return storeCall(
+    q.get('export') === '1'
+      ? 'fin_export'
+      : q.get('queue') === '1'
+        ? 'fin_queue'
+        : id
+          ? 'fin_focus'
+          : 'fin_list',
+    {
+      actorId: a.userId,
+      id,
+      tab: q.get('tab') === 'imports' ? 'imports' : 'documents',
+      status: (q.get('status') || '').slice(0, 40),
+      offset,
+      month,
+    },
+  );
 }
 export function previewSource(input: any) {
   let parsed;
@@ -186,6 +198,31 @@ export async function accountingCommand(a: Actor, input: any) {
         note: bounded(p.note, 1000, true),
         recordId: bounded(p.recordId || '', 200),
         kind: p.kind,
+      };
+    } else if (input.operation === 'pay') {
+      if (!validDate(p.date)) throw new AppError('Check the payment date.');
+      if (!Number.isSafeInteger(p.amount) || p.amount <= 0 || p.amount > 1e12)
+        throw new AppError('Enter an amount in whole VND.');
+      if (
+        ![
+          'Rent',
+          'Utilities',
+          'Teaching',
+          'Books',
+          'Marketing',
+          'Insurance',
+          'Bank fees',
+          'Office',
+          'Other',
+        ].includes(p.category)
+      )
+        throw new AppError('Choose the payment category.');
+      args.payload = {
+        date: p.date,
+        amount: p.amount,
+        category: p.category,
+        account: bounded(p.account, 100, true),
+        evidence: bounded(p.evidence, 1000, true),
       };
     } else if (input.operation === 'settle') {
       if (!Number.isSafeInteger(p.amount) || p.amount <= 0 || p.amount > 1e12)

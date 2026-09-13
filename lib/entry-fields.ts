@@ -4,6 +4,11 @@ export type Field = {
   type?: string;
   options?: string[];
   required?: boolean;
+  section?: string;
+  help?: string;
+  advanced?: boolean;
+  visibleWhen?: { key: string; value: string };
+  control?: 'money' | 'suggestion';
 };
 export const fields: Record<string, Field[]> = {
   class: [

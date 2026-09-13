@@ -116,7 +116,7 @@ export default function Welcome({ signedIn = false }: { signedIn?: boolean }) {
             <summary>{t('First time here?')}</summary>
             <p>
               {t(
-                'Use the email and temporary password given to you by the Director. You will choose your own password before entering. For TAs, the Director must also assign your classes. This is a private staff app, not a student sign-up page.',
+                'Use the email and temporary password given to you by the Director. You will choose your own password before entering. TAs have teaching access across all classes. This is a private staff app, not a student sign-up page.',
               )}
             </p>
           </details>

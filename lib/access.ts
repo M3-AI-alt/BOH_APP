@@ -11,12 +11,8 @@ export function accessScope(actor: Actor) {
   ]);
 }
 
-export function homeView(role: Actor['role']) {
-  return role === 'TA'
-    ? 'Attendance'
-    : role === 'Finance'
-      ? 'Finance'
-      : 'Overview';
+export function homeView(_role: Actor['role']) {
+  return 'Today';
 }
 
 export class AccessError extends Error {

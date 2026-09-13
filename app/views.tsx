@@ -1,6 +1,7 @@
 'use client';
 import { useLanguage } from '@/app/language';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { NavigationTarget } from '@/lib/workspace-navigation';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -40,6 +41,14 @@ import {
 } from './ui';
 import { Payroll, AccountantTasks } from './finance-work';
 import { SourceReview } from './source-review';
+import { FilterBar } from './filter-bar';
+import {
+  emptyFilters,
+  matchesFilters,
+  numericTotal,
+  filterColumns,
+  type FilterSpec,
+} from '@/lib/record-filters';
 import {
   entries,
   attendanceRoster,
@@ -53,6 +62,8 @@ import {
   allocations,
   studentReceiptShare,
   linkedStudentNames,
+  receiptStudentIds,
+  resolveStudentId,
 } from '@/lib/domain';
 import { CUTOFF, priceList, type DataRecord, type Snapshot } from '@/lib/types';
 export type ViewProps = {
@@ -64,7 +75,8 @@ export type ViewProps = {
   setClassFilter: (id: string) => void;
   open: (kind: string, record?: any, defaults?: any) => void;
   detail: (id: string, asOf?: string) => void;
-  navigate: (view: string) => void;
+  navigate: (view: string, target?: NavigationTarget) => void;
+  navigationTarget?: NavigationTarget;
   save: (kind: string, record: any, payload: any) => Promise<void>;
   refresh?: () => Promise<boolean>;
 };
@@ -318,10 +330,12 @@ export function Attendance(p: ViewProps) {
     [rosterScope, setRosterScope] = useState<'current' | 'history'>('current'),
     [saving, setSaving] = useState(''),
     [error, setError] = useState('');
+  const [gridFilters, setGridFilters] = useState<FilterSpec>(emptyFilters);
+  const [lessonSearch, setLessonSearch] = useState('');
   if (!cl)
     return (
       <Empty
-        title={t('No classes assigned')}
+        title={t('No classes available')}
         detail={t('Ask the Director to check class setup.')}
       />
     );
@@ -329,20 +343,41 @@ export function Attendance(p: ViewProps) {
   const attendance = entries(records, 'attendance').filter(
     (a) => a.classId === cl.id && a.date?.startsWith(p.month),
   );
-  const dates = [
+  const allDates = [
     ...new Set([
       ...attendance.map((a) => a.date),
       ...scheduledDates(records, cl.id, p.month + '-01', monthEnd(p.month)),
     ]),
   ].sort();
+  const dates = allDates.filter(
+    (date) =>
+      !gridFilters.facets.date?.length ||
+      gridFilters.facets.date.includes(date),
+  );
   const lookup = new Map(
     attendance.map((a) => [a.membershipId + ':' + a.date, a]),
   );
-  const ms = members.filter((m) =>
-    cleanSearch(
-      students.find((s) => s.id === m.studentId)?.name ?? m.sourceName ?? '',
-    ).includes(cleanSearch(p.search)),
+  const scheduled = new Set(
+    scheduledDates(records, cl.id, p.month + '-01', monthEnd(p.month)),
   );
+  const ms = members.filter((m) => {
+    const marks = dates.flatMap((date) => {
+      const mark = lookup.get(m.id + ':' + date)?.mark;
+      if (mark) return ['completed', mark];
+      return date <= today() &&
+        date <= p.reviewDate &&
+        scheduled.has(date) &&
+        (!m.from || date >= m.from) &&
+        (!m.until || date <= m.until)
+        ? ['missing']
+        : [];
+    });
+    return matchesFilters(
+      { ...gridFilters, facets: { ...gridFilters.facets, date: [] } },
+      { mark: marks },
+      [students.find((s) => s.id === m.studentId)?.name, m.sourceName],
+    );
+  });
   async function mark(m: any, date: string, value: string) {
     const existing = lookup.get(m.id + ':' + date);
     setSaving(m.id + date);
@@ -406,6 +441,71 @@ export function Attendance(p: ViewProps) {
           <TabsTrigger value="calendar">{t('Calendar')}</TabsTrigger>
         </TabsList>
         <TabsContent value="grid">
+          <FilterBar
+            module="attendance"
+            actor={actor}
+            value={gridFilters}
+            onChange={setGridFilters}
+            count={ms.length}
+            facets={[
+              {
+                key: 'mark',
+                label: 'Attendance marks',
+                options: [
+                  { value: 'missing', label: 'Missing past marks' },
+                  { value: 'completed', label: 'Completed marks' },
+                  ...['P', 'T', 'A', 'N', 'C', 'L', 'K', 'M'].map((value) => ({
+                    value,
+                    label: value,
+                  })),
+                ],
+              },
+              {
+                key: 'date',
+                label: 'Lesson date',
+                options: allDates.map((value) => ({ value, label: value })),
+              },
+            ]}
+          />
+          <div className="section-toolbar">
+            <p className="muted">
+              {t(
+                'Missing marks only include scheduled lessons through the review date, never future lessons.',
+              )}
+            </p>
+            <Button
+              variant="outline"
+              onClick={() =>
+                downloadCsv('attendance-' + p.month, [
+                  [
+                    'Class',
+                    'Student',
+                    'Membership',
+                    'Date',
+                    'Mark',
+                    'Reporting month',
+                    'As of',
+                    'Generated at',
+                  ],
+                  ...ms.flatMap((m) =>
+                    dates.map((date) => [
+                      cl.name,
+                      students.find((s) => s.id === m.studentId)?.name ||
+                        m.sourceName,
+                      m.id,
+                      date,
+                      lookup.get(m.id + ':' + date)?.mark || '',
+                      p.month,
+                      p.reviewDate,
+                      new Date().toISOString(),
+                    ]),
+                  ),
+                ])
+              }
+            >
+              {t('Export filtered attendance')}
+            </Button>
+          </div>
           <div className="class-bar">
             <Choice
               label={t('Attendance list')}
@@ -641,10 +741,30 @@ export function Attendance(p: ViewProps) {
           )}
         </TabsContent>
         <TabsContent value="makeup">
-          <LessonLog {...p} kind="makeup" classId={cl.id} />
+          <SearchBox
+            value={lessonSearch}
+            onChange={setLessonSearch}
+            placeholder={t('Search student or lesson…')}
+          />
+          <LessonLog
+            {...p}
+            search={lessonSearch}
+            kind="makeup"
+            classId={cl.id}
+          />
         </TabsContent>
         <TabsContent value="support">
-          <LessonLog {...p} kind="support" classId={cl.id} />
+          <SearchBox
+            value={lessonSearch}
+            onChange={setLessonSearch}
+            placeholder={t('Search student or lesson…')}
+          />
+          <LessonLog
+            {...p}
+            search={lessonSearch}
+            kind="support"
+            classId={cl.id}
+          />
         </TabsContent>
         <TabsContent value="calendar">
           <Panel
@@ -1243,6 +1363,16 @@ export function Packages(p: ViewProps) {
 export function Finance(p: ViewProps) {
   const { t, money } = useLanguage();
   const [tab, setTab] = useState('receipts');
+  const [cashFilters, setCashFilters] = useState<Record<string, FilterSpec>>({
+    receipts: emptyFilters(),
+    expenses: emptyFilters(),
+  });
+  const [financeSearch, setFinanceSearch] = useState('');
+  const receiptFilter = cashFilters.receipts,
+    expenseFilter = cashFilters.expenses;
+  useEffect(() => {
+    if (p.navigationTarget?.tab) setTab(p.navigationTarget.tab);
+  }, [p.navigationTarget]);
   const { records } = p.snapshot;
   const summary = cashSummary(records, p.month, p.reviewDate),
     students = entries(records, 'student');
@@ -1262,9 +1392,52 @@ export function Finance(p: ViewProps) {
         x.account,
         x.category,
       ].join(' '),
-    ).includes(cleanSearch(p.search));
-  const rec = summary.receipts.filter(filter),
-    exp = summary.expenses.filter(filter);
+    ).includes(cleanSearch(financeSearch));
+  const cashMatch = (x: any, spec: FilterSpec) =>
+    matchesFilters(
+      spec,
+      {
+        ...x,
+        reconciliation: x.reconciled ? 'matched' : 'unmatched',
+        allocation: x.allocations?.length
+          ? 'split'
+          : x.packageId
+            ? 'linked'
+            : 'review',
+        classId: receiptStudentIds(x)
+          .map(
+            (id) =>
+              students.find((s) => s.id === resolveStudentId(records, id))
+                ?.classId,
+          )
+          .filter(Boolean),
+      },
+      [
+        linkedStudentNames(records, x),
+        x.name,
+        x.description,
+        x.reference,
+        x.account,
+        x.category,
+        t(x.category || ''),
+        x.purpose,
+        t(x.purpose || ''),
+      ],
+    );
+  const rec = summary.receipts.filter((x) => cashMatch(x, receiptFilter)),
+    exp = summary.expenses.filter((x) => cashMatch(x, expenseFilter));
+  const cashTab = tab === 'receipts' || tab === 'expenses';
+  const currentFilter = cashFilters[tab] || emptyFilters();
+  const choices = (key: string, list: any[]) =>
+    [
+      ...new Set(
+        list
+          .map((r) => r[key])
+          .filter((v): v is string => typeof v === 'string' && !!v),
+      ),
+    ]
+      .sort()
+      .map((value) => ({ value, label: value }));
   const classes = entries(records, 'class');
   function paidFor(studentId: string, list: any[]) {
     return list.reduce(
@@ -1346,6 +1519,16 @@ export function Finance(p: ViewProps) {
           variant="outline"
           onClick={() =>
             downloadCsv('finance-' + p.month, [
+              [t('Period'), p.month, t('Through'), cutoff],
+              [
+                t('Reporting basis'),
+                t('Actual recorded cash; not accounting profit'),
+              ],
+              [
+                t('Filters'),
+                JSON.stringify(cashTab ? currentFilter : cashFilters),
+              ],
+              [t('Generated at'), new Date().toISOString()],
               [
                 'Type',
                 'Date',
@@ -1354,7 +1537,7 @@ export function Finance(p: ViewProps) {
                 'Account',
                 'Reference',
               ].map((h) => t(h)),
-              ...summary.receipts.map((r) => [
+              ...(tab === 'expenses' ? [] : rec).map((r) => [
                 t('Receipt'),
                 r.date,
                 r.name,
@@ -1362,18 +1545,18 @@ export function Finance(p: ViewProps) {
                 r.account,
                 r.reference,
               ]),
-              ...summary.expenses.map((r) => [
+              ...(tab === 'receipts' ? [] : exp).map((r) => [
                 t('Expense'),
                 r.date,
                 r.description,
-                r.amount,
+                typeof r.amount === 'number' ? r.amount : r.originalAmount,
                 r.account,
                 r.reference,
               ]),
             ])
           }
         >
-          <Download size={15} /> {t('Export month')}
+          <Download size={15} /> {t('Export filtered cash')}
         </Button>
       </div>
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
@@ -1388,6 +1571,136 @@ export function Finance(p: ViewProps) {
           <TabsTrigger value="tasks">{t('Tasks')}</TabsTrigger>
           <TabsTrigger value="reconcile">{t('Reconciliation')}</TabsTrigger>
         </TabsList>
+        {cashTab && (
+          <>
+            <p className="field-help">
+              {t('Effective period')}: {p.month} · {t('Through')} {cutoff}.{' '}
+              {cutoff < `${p.month}-01` &&
+                t(
+                  'The review date is before this month. Choose a later review date to include its dated transactions.',
+                )}{' '}
+              {t('Actual recorded cash; not accounting profit')}
+            </p>
+            <p className="field-help">
+              {t(
+                'The cards above show centre-wide cash. Filters below affect the matching records and export.',
+              )}
+            </p>
+            <FilterBar
+              key={tab}
+              module={tab}
+              actor={p.snapshot.actor}
+              value={currentFilter}
+              onChange={(value) =>
+                setCashFilters((all) => ({ ...all, [tab]: value }))
+              }
+              count={tab === 'receipts' ? rec.length : exp.length}
+              columns={filterColumns[tab].map((key) => ({
+                key,
+                label: (
+                  {
+                    date: 'Date',
+                    payer: 'Payer',
+                    purpose: 'Purpose',
+                    amount: 'Amount',
+                    account: 'Account',
+                    allocation: 'Allocation',
+                    category: 'Category',
+                    description: 'Description',
+                    reconciliation: 'Reconciliation',
+                  } as Record<string, string>
+                )[key],
+              }))}
+              facets={[
+                {
+                  key: 'account',
+                  label: 'Account',
+                  options: choices(
+                    'account',
+                    tab === 'receipts' ? summary.receipts : summary.expenses,
+                  ),
+                },
+                {
+                  key: 'reconciliation',
+                  label: 'Reconciliation',
+                  options: [
+                    { value: 'matched', label: 'Matched' },
+                    { value: 'unmatched', label: 'Not matched' },
+                  ],
+                },
+                ...(tab === 'receipts'
+                  ? [
+                      {
+                        key: 'purpose',
+                        label: 'Purpose',
+                        options: choices('purpose', summary.receipts),
+                      },
+                      {
+                        key: 'allocation',
+                        label: 'Allocation',
+                        options: [
+                          { value: 'split', label: 'Family split' },
+                          { value: 'linked', label: 'Package linked' },
+                          { value: 'review', label: 'Needs review' },
+                        ],
+                      },
+                      {
+                        key: 'classId',
+                        label: 'Linked student current class',
+                        options: classes.map((c) => ({
+                          value: c.id,
+                          label: c.name,
+                        })),
+                      },
+                    ]
+                  : [
+                      {
+                        key: 'category',
+                        label: 'Category',
+                        options: choices('category', summary.expenses),
+                      },
+                    ]),
+              ]}
+            />
+            <div className="filtered-total">
+              <strong>
+                {t(
+                  tab === 'receipts'
+                    ? 'Matching receipt totals'
+                    : 'Matching expense totals',
+                )}
+                : {money(numericTotal(tab === 'receipts' ? rec : exp))} VND
+              </strong>
+              {tab === 'receipts' && (
+                <span>
+                  {t(
+                    'Whole records counted once. Family receipts may include students from other classes.',
+                  )}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+        {!cashTab && (
+          <div className="section-toolbar">
+            <SearchBox
+              value={financeSearch}
+              onChange={setFinanceSearch}
+              placeholder={t('Search names or descriptions…')}
+            />
+            {tab === 'review' && (
+              <Choice
+                label="All classes"
+                value={p.classFilter}
+                onChange={p.setClassFilter}
+                options={[
+                  { value: '', label: t('All classes') },
+                  ...classes.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+            )}
+          </div>
+        )}
         <TabsContent value="receipts">
           <Panel
             title={t('Money collected')}
@@ -1396,6 +1709,18 @@ export function Finance(p: ViewProps) {
             )}
           >
             <DataTable
+              visibleColumns={
+                receiptFilter.columns.length
+                  ? [
+                      ...filterColumns.receipts
+                        .map((key, i) =>
+                          receiptFilter.columns.includes(key) ? i : -1,
+                        )
+                        .filter((i) => i >= 0),
+                      6,
+                    ]
+                  : undefined
+              }
               headings={[
                 'Date',
                 'Payer / student',
@@ -1463,6 +1788,18 @@ export function Finance(p: ViewProps) {
             )}
           >
             <DataTable
+              visibleColumns={
+                expenseFilter.columns.length
+                  ? [
+                      ...filterColumns.expenses
+                        .map((key, i) =>
+                          expenseFilter.columns.includes(key) ? i : -1,
+                        )
+                        .filter((i) => i >= 0),
+                      6,
+                    ]
+                  : undefined
+              }
               headings={[
                 'Date',
                 'Category',
@@ -1525,7 +1862,7 @@ export function Finance(p: ViewProps) {
                 .filter(
                   (s) =>
                     (!p.classFilter || s.classId === p.classFilter) &&
-                    cleanSearch(s.name).includes(cleanSearch(p.search)),
+                    cleanSearch(s.name).includes(cleanSearch(financeSearch)),
                 )
                 .map((s) => [
                   <button
@@ -1599,10 +1936,10 @@ export function Finance(p: ViewProps) {
           </Panel>
         </TabsContent>
         <TabsContent value="payroll">
-          <Payroll {...p} />
+          <Payroll {...p} search={financeSearch} />
         </TabsContent>
         <TabsContent value="tasks">
-          <AccountantTasks {...p} />
+          <AccountantTasks {...p} search={financeSearch} />
         </TabsContent>
         <TabsContent value="reconcile">
           <Reconciliation {...p} />
@@ -1694,70 +2031,171 @@ function Reconciliation(p: ViewProps) {
 }
 export function Leads(p: ViewProps) {
   const { t } = useLanguage();
+  const [filters, setFilters] = useState<FilterSpec>(emptyFilters);
   const classes = entries(p.snapshot.records, 'class');
-  const list = entries(p.snapshot.records, 'lead').filter((r) =>
-    cleanSearch([r.name, r.parent, r.phone].join(' ')).includes(
-      cleanSearch(p.search),
+  const leads = entries(p.snapshot.records, 'lead');
+  const list = leads.filter((r) =>
+    matchesFilters(
+      filters,
+      {
+        status: r.status,
+        classId: r.classId,
+        followUp:
+          r.followUp &&
+          r.followUp < today() &&
+          !['Enrolled', 'Not proceeding', 'Closed'].includes(r.status)
+            ? 'overdue'
+            : r.followUp === today()
+              ? 'today'
+              : !r.followUp
+                ? 'none'
+                : 'scheduled',
+      },
+      [r.name, r.parent, r.phone, r.notes, t(r.status || '')],
     ),
   );
   return (
-    <Panel
-      title={t('Leads & trials')}
-      subtitle={t('Track the next conversation, trial lesson and enrolment.')}
-    >
-      <DataTable
-        headings={[
+    <>
+      <FilterBar
+        module="leads"
+        actor={p.snapshot.actor}
+        value={filters}
+        onChange={setFilters}
+        count={list.length}
+        facets={[
+          {
+            key: 'status',
+            label: 'Stage',
+            options: [...new Set(leads.map((r) => String(r.status || '')))]
+              .filter(Boolean)
+              .map((value) => ({ value, label: value })),
+          },
+          {
+            key: 'classId',
+            label: 'Class',
+            options: classes.map((c) => ({ value: c.id, label: c.name })),
+          },
+          {
+            key: 'followUp',
+            label: 'Follow-up date',
+            options: [
+              { value: 'overdue', label: 'Overdue follow-ups' },
+              { value: 'today', label: 'Today' },
+              { value: 'scheduled', label: 'Scheduled' },
+              { value: 'none', label: 'Not recorded' },
+            ],
+          },
+        ]}
+        columns={[
           'Name',
           'Parent / contact',
           'Class',
           'Stage',
           'Follow-up date',
           'Notes',
-          '',
-        ]}
-        rows={list.map((r) => [
-          r.name,
-          <span>
-            {r.parent}
-            <small>{r.phone}</small>
-          </span>,
-          <ClassTag cl={classes.find((c) => c.id === r.classId)} />,
-          <Badge>{r.status}</Badge>,
-          r.followUp || '—',
-          <div className="long-cell">{r.notes}</div>,
-          <div className="button-row">
-            <Button
-              variant="ghost"
-              onClick={() =>
-                p.open(
-                  'lead',
-                  p.snapshot.records.find((x) => x.id === r.id),
-                )
-              }
-            >
-              {t('Edit')}
-            </Button>
-            {r.status !== 'Enrolled' && (
+        ].map((label, i) => ({ key: filterColumns.leads[i], label }))}
+      />
+      <div className="section-toolbar">
+        <Button
+          variant="outline"
+          onClick={() =>
+            downloadCsv('leads', [
+              [
+                'Name',
+                'Parent',
+                'Phone',
+                'Class',
+                'Stage',
+                'Follow-up date',
+                'Notes',
+                'Filters',
+                'Generated at',
+              ],
+              ...list.map((r) => [
+                r.name,
+                r.parent,
+                r.phone,
+                classes.find((c) => c.id === r.classId)?.name || '',
+                r.status,
+                r.followUp,
+                r.notes,
+                JSON.stringify(filters),
+                new Date().toISOString(),
+              ]),
+            ])
+          }
+        >
+          {t('Export filtered leads')}
+        </Button>
+      </div>
+      <Panel
+        title={t('Leads & trials')}
+        subtitle={t('Track the next conversation, trial lesson and enrolment.')}
+      >
+        <DataTable
+          visibleColumns={
+            filters.columns.length
+              ? [
+                  ...filterColumns.leads
+                    .map((key, i) => (filters.columns.includes(key) ? i : -1))
+                    .filter((i) => i >= 0),
+                  6,
+                ]
+              : undefined
+          }
+          headings={[
+            'Name',
+            'Parent / contact',
+            'Class',
+            'Stage',
+            'Follow-up date',
+            'Notes',
+            '',
+          ]}
+          rows={list.map((r) => [
+            r.name,
+            <span>
+              {r.parent}
+              <small>{r.phone}</small>
+            </span>,
+            <ClassTag cl={classes.find((c) => c.id === r.classId)} />,
+            <Badge>{t(r.status)}</Badge>,
+            r.followUp || '—',
+            <div className="long-cell">{r.notes}</div>,
+            <div className="button-row">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() =>
-                  p.open('student', undefined, {
-                    name: r.name,
-                    parent: r.parent,
-                    phone: r.phone,
-                    classId: r.classId,
-                    leadId: r.id,
-                    notes: 'From lead: ' + r.name,
-                  })
+                  p.open(
+                    'lead',
+                    p.snapshot.records.find((x) => x.id === r.id),
+                  )
                 }
               >
-                {t('Add as student')}
+                {t('Edit')}
               </Button>
-            )}
-          </div>,
-        ])}
-      />
-    </Panel>
+              {r.status !== 'Enrolled' && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    p.open('student', undefined, {
+                      name: r.name,
+                      parent: r.parent,
+                      phone: r.phone,
+                      classId: r.classId,
+                      leadId: r.id,
+                      notes: 'From lead: ' + r.name,
+                    })
+                  }
+                >
+                  {t('Add as student')}
+                </Button>
+              )}
+            </div>,
+          ])}
+        />
+      </Panel>
+    </>
   );
 }
 export function Team(p: ViewProps) {
@@ -1779,7 +2217,7 @@ export function Team(p: ViewProps) {
       <Panel
         title={t('Team & access')}
         subtitle={t(
-          'TA access is limited to the classes assigned here. Finance data is never sent to TA accounts.',
+          'TAs can manage attendance, makeups and free support across all current and future classes. Finance data is never sent to TA accounts.',
         )}
       >
         <DataTable
@@ -1787,7 +2225,7 @@ export function Team(p: ViewProps) {
             'Staff member',
             'Sign-in email',
             'Role',
-            'Assigned classes',
+            'Class access',
             'Sign-in status',
             '',
           ]}

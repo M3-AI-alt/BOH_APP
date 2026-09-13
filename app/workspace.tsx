@@ -34,6 +34,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import {
@@ -46,10 +47,18 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Badge, Choice, ClassTag, SearchBox, DataTable } from './ui';
 import RecordForm from './record-form';
+import { DraftsWorkspace } from './drafts-workspace';
 import StudentProfile from './student-profile';
 import { Accounting } from './accounting-workspace';
 import { BulkWorkspace } from './bulk-workspace';
 import { CentreSettings } from './centre-settings';
+import { TodayWorkspace } from './today-workspace';
+import {
+  allowedViews,
+  areaFor,
+  workspaceAreas,
+  type NavigationTarget,
+} from '@/lib/workspace-navigation';
 import StudentLinkForm from './student-link-form';
 import { createRefreshQueue } from '@/lib/refresh-queue';
 import {
@@ -82,7 +91,23 @@ import {
   resolveStudentId,
 } from '@/lib/domain';
 import { CUTOFF, type Snapshot, type DataRecord } from '@/lib/types';
+function WorkspaceMenuButton(
+  props: React.ComponentProps<typeof SidebarMenuButton>,
+) {
+  const { setOpenMobile } = useSidebar();
+  return (
+    <SidebarMenuButton
+      {...props}
+      onClick={(event) => {
+        props.onClick?.(event);
+        setOpenMobile(false);
+      }}
+    />
+  );
+}
 const nav = [
+  { label: 'My drafts', icon: FileInput },
+  { label: 'Today', icon: LayoutDashboard },
   { label: 'Overview', icon: LayoutDashboard },
   { label: 'Attendance', icon: CalendarCheck2 },
   { label: 'Students', icon: Users },
@@ -97,6 +122,8 @@ const nav = [
   { label: 'Original records', icon: Database },
 ];
 const views: Record<string, React.ComponentType<ViewProps>> = {
+  'My drafts': DraftsWorkspace,
+  Today: TodayWorkspace,
   Overview: Overview,
   Attendance: Attendance,
   Students: Students,
@@ -112,7 +139,7 @@ const views: Record<string, React.ComponentType<ViewProps>> = {
 };
 export default function Workspace({ userName }: { userName: string }) {
   const { t, message, intlLocale } = useLanguage();
-  const [view, setView] = useState('Overview'),
+  const [view, setView] = useState('Today'),
     [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [month, setMonth] = useState(today().slice(0, 7)),
     [reviewDate, setReviewDate] = useState(today()),
@@ -126,6 +153,9 @@ export default function Workspace({ userName }: { userName: string }) {
     [busy, setBusy] = useState(false),
     [progress, setProgress] = useState<number | null>(null),
     [saved, setSaved] = useState('');
+  const [navigationTarget, setNavigationTarget] = useState<NavigationTarget>(
+    {},
+  );
   const current = useRef<any>({});
   const scope = useRef('');
   const discardPrivateState = useCallback(() => {
@@ -248,8 +278,14 @@ export default function Workspace({ userName }: { userName: string }) {
       window.removeEventListener('storage', changed);
     };
   }, [load]);
-  const navigate = useCallback((v: string) => {
+  const navigate = useCallback((v: string, target: NavigationTarget = {}) => {
+    const actor = current.current.snapshot?.actor;
+    if (actor && !allowedViews(actor.role).includes(v)) return;
     setView(v);
+    setNavigationTarget(target);
+    if (target.month) setMonth(target.month);
+    if (target.classId != null) setClassFilter(target.classId);
+    if (target.month) setReviewDate(today());
     setSearch('');
     setError('');
   }, []);
@@ -325,14 +361,7 @@ export default function Workspace({ userName }: { userName: string }) {
           const c = current.current;
           const role = c.snapshot?.actor.role;
           if (!role) throw new Error('Sign in first.');
-          const allowed =
-            role === 'TA'
-              ? ['Attendance']
-              : role === 'Finance'
-                ? nav
-                    .map((n) => n.label)
-                    .filter((n) => !['Leads', 'Team & access'].includes(n))
-                : nav.map((n) => n.label);
+          const allowed = allowedViews(role);
           if (!allowed.includes(input.view))
             throw new Error('View not permitted for your role.');
           if (input.month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month))
@@ -373,13 +402,21 @@ export default function Workspace({ userName }: { userName: string }) {
     return () => lifecycle.abort();
   }, []);
   const role = snapshot?.actor.role ?? 'Director';
-  const navigation = nav.filter((n) =>
-    role === 'TA'
-      ? ['Attendance', 'Import & export'].includes(n.label)
-      : role === 'Finance'
-        ? !['Leads', 'Team & access'].includes(n.label)
-        : true,
-  );
+  const navigation = nav.filter((n) => allowedViews(role).includes(n.label));
+  const area = areaFor(view);
+  const areas = workspaceAreas
+    .map((item) => ({
+      ...item,
+      views: item.views.filter((child) => allowedViews(role).includes(child)),
+    }))
+    .filter((item) => item.views.length);
+  const areaIcons = {
+    Today: LayoutDashboard,
+    People: Users,
+    Classes: BookOpen,
+    Money: Wallet,
+    More: Database,
+  };
   const classes = snapshot ? entries(snapshot.records, 'class') : [];
   const canCreate =
     view === 'Attendance'
@@ -398,6 +435,8 @@ export default function Workspace({ userName }: { userName: string }) {
     'Team & access': ['staff', 'Add staff'],
   };
   const title: Record<string, string> = {
+    'My drafts': 'My drafts',
+    Today: 'Today',
     Overview: 'Centre overview',
     Attendance: 'Class attendance',
     Students: 'Student directory',
@@ -412,6 +451,8 @@ export default function Workspace({ userName }: { userName: string }) {
     'Original records': 'Your original records, preserved.',
   };
   const subtitles: Record<string, string> = {
+    'My drafts': 'Continue unfinished work securely in your account.',
+    Today: 'Your classes, follow-ups and next actions in one place.',
     Overview: 'Collections, classes and the next conversations to have.',
     Attendance: 'Choose a class. Mark the date. The balance updates.',
     Students:
@@ -475,6 +516,7 @@ export default function Workspace({ userName }: { userName: string }) {
           setProfileDate(asOf || reviewDate);
         },
         navigate,
+        navigationTarget,
         save,
         refresh: load,
       }
@@ -533,17 +575,21 @@ export default function Workspace({ userName }: { userName: string }) {
         <SidebarContent>
           <p className="nav-caption">{t('WORKSPACE')}</p>
           <SidebarMenu>
-            {navigation.map((n) => (
-              <SidebarMenuItem key={n.label}>
-                <SidebarMenuButton
-                  isActive={view === n.label}
-                  onClick={() => navigate(n.label)}
-                >
-                  <n.icon size={19} />
-                  <span>{t(n.label)}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {areas.map((n) => {
+              const Icon = areaIcons[n.label];
+              return (
+                <SidebarMenuItem key={n.label}>
+                  <WorkspaceMenuButton
+                    className={'area-nav area-' + n.label.toLowerCase()}
+                    isActive={area === n.label}
+                    onClick={() => navigate(n.views[0])}
+                  >
+                    <Icon size={19} />
+                    <span>{t(n.label)}</span>
+                  </WorkspaceMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
           </SidebarMenu>
           <div className="sidebar-note">
             <ShieldCheck size={18} />
@@ -610,6 +656,23 @@ export default function Workspace({ userName }: { userName: string }) {
           </div>
         </header>
         <div className="page-content">
+          {snapshot && area !== 'Today' && (
+            <nav className="workspace-section-tabs" aria-label={t(area)}>
+              {navigation
+                .filter((item) => areaFor(item.label) === area)
+                .map((item) => (
+                  <Button
+                    key={item.label}
+                    variant={view === item.label ? 'default' : 'outline'}
+                    aria-current={view === item.label ? 'page' : undefined}
+                    onClick={() => navigate(item.label)}
+                  >
+                    <item.icon size={16} />
+                    {t(item.label)}
+                  </Button>
+                ))}
+            </nav>
+          )}
           <div className="page-heading">
             <div>
               <p className="eyebrow">
@@ -666,7 +729,7 @@ export default function Workspace({ userName }: { userName: string }) {
           )}
           {snapshot && (
             <>
-              {view === homeView(role) && (
+              {view !== 'Today' && view === homeView(role) && (
                 <section
                   className="workspace-welcome"
                   aria-label={t('Your workspace home')}
@@ -731,59 +794,79 @@ export default function Workspace({ userName }: { userName: string }) {
                   />
                 </section>
               )}
-              <div className="period-toolbar">
-                <div className="period">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t('Previous month')}
-                    onClick={() => setMonth(shiftMonth(month, -1))}
-                  >
-                    <ChevronLeft />
-                  </Button>
-                  <input
-                    type="month"
-                    aria-label={t('Reporting month')}
-                    value={month}
-                    onChange={(e) => e.target.value && setMonth(e.target.value)}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t('Next month')}
-                    onClick={() => setMonth(shiftMonth(month, 1))}
-                  >
-                    <ChevronRight />
-                  </Button>
+              {[
+                'Overview',
+                'Attendance',
+                'Students',
+                'Packages',
+                'Renewals',
+                'Finance',
+                'Accounting',
+              ].includes(view) && (
+                <div className="period-toolbar">
+                  {!['Students', 'Packages'].includes(view) && (
+                    <div className="period">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('Previous month')}
+                        onClick={() => setMonth(shiftMonth(month, -1))}
+                      >
+                        <ChevronLeft />
+                      </Button>
+                      <input
+                        type="month"
+                        aria-label={t('Reporting month')}
+                        value={month}
+                        onChange={(e) =>
+                          e.target.value && setMonth(e.target.value)
+                        }
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('Next month')}
+                        onClick={() => setMonth(shiftMonth(month, 1))}
+                      >
+                        <ChevronRight />
+                      </Button>
+                    </div>
+                  )}
+                  {view !== 'Accounting' && (
+                    <div className="review-control">
+                      <label htmlFor="review-date">
+                        {t(
+                          view === 'Attendance'
+                            ? 'Review through'
+                            : 'Historical balances as of',
+                        )}
+                      </label>
+                      <input
+                        type="date"
+                        id="review-date"
+                        value={reviewDate}
+                        max={today()}
+                        onChange={(e) =>
+                          e.target.value && setReviewDate(e.target.value)
+                        }
+                      />
+                    </div>
+                  )}
+                  <span className="source-note" aria-live="polite">
+                    {saved
+                      ? t('Saved at ') + saved
+                      : t('App refreshed ') +
+                        new Date(snapshot.loadedAt).toLocaleTimeString(
+                          intlLocale,
+                          {
+                            timeZone: 'Asia/Ho_Chi_Minh',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          },
+                        )}
+                  </span>
                 </div>
-                {!['Accounting', 'Classes & catalogue'].includes(view) && (
-                  <div className="review-control">
-                    <label htmlFor="review-date">{t('Review through')}</label>
-                    <input
-                      type="date"
-                      id="review-date"
-                      value={reviewDate}
-                      max={today()}
-                      onChange={(e) =>
-                        e.target.value && setReviewDate(e.target.value)
-                      }
-                    />
-                  </div>
-                )}
-                <span className="source-note" aria-live="polite">
-                  {saved
-                    ? t('Saved at ') + saved
-                    : t('App refreshed ') +
-                      new Date(snapshot.loadedAt).toLocaleTimeString(
-                        intlLocale,
-                        {
-                          timeZone: 'Asia/Ho_Chi_Minh',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        },
-                      )}
-                </span>
-              </div>
+              )}
               {missing > 0 &&
                 ['Overview', 'Renewals', 'Attendance'].includes(view) && (
                   <div className="notice compact">
@@ -800,12 +883,17 @@ export default function Workspace({ userName }: { userName: string }) {
                   </div>
                 )}
               {![
+                'Today',
+                'My drafts',
                 'Overview',
                 'Original records',
                 'Team & access',
                 'Accounting',
                 'Import & export',
                 'Classes & catalogue',
+                'Finance',
+                'Leads',
+                'Attendance',
               ].includes(view) && (
                 <div className="filter-toolbar">
                   <SearchBox
@@ -848,6 +936,7 @@ export default function Workspace({ userName }: { userName: string }) {
           key={dialog.kind + ':' + (dialog.record?.id ?? 'new')}
           {...dialog}
           records={snapshot.records}
+          role={snapshot.actor.role}
           onClose={() => setDialog(null)}
           onSaved={afterSaved}
           onRefresh={load}
@@ -934,7 +1023,7 @@ export default function Workspace({ userName }: { userName: string }) {
                 <h2>{t('Give staff access')}</h2>
                 <p>
                   {t(
-                    'Add the staff member’s individual email under Team & access and choose their role. TAs also need their classes assigned. Arrange an individual temporary password before their first sign-in; do not give anyone your own login.',
+                    'Add the staff member’s individual email under Team & access and choose their role. TAs have teaching access across all classes. Arrange an individual temporary password before their first sign-in; do not give anyone your own login.',
                   )}
                 </p>
               </>

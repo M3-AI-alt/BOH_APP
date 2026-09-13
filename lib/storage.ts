@@ -28,9 +28,19 @@ export async function storeCall(
         ? 'boh_student_link'
         : operation.startsWith('auth_')
           ? 'boh_auth'
-          : operation.startsWith('fin_')
-            ? 'boh_finance'
-            : 'boh_store'),
+          : operation.startsWith('view_')
+            ? 'boh_saved_view'
+            : operation.startsWith('entry_')
+              ? 'boh_entry_command'
+              : operation.startsWith('draft_')
+                ? 'boh_drafts'
+                : ['fin_pay', 'fin_export', 'fin_queue', 'fin_focus'].includes(
+                      operation,
+                    )
+                  ? 'boh_finance_workspace'
+                  : operation.startsWith('fin_')
+                    ? 'boh_finance'
+                    : 'boh_store'),
     {
       method: 'POST',
       headers: {

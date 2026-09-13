@@ -21,12 +21,16 @@ import { useLanguage } from './language';
 import { csvCell, documentKinds, parseSourceCsv } from '@/lib/accounting';
 import { entries, today } from '@/lib/domain';
 import type { ViewProps } from './views';
+import { MoneyInput, FinancialReview } from './entry-controls';
 
 export function Accounting(p: ViewProps) {
   const { t, message, money } = useLanguage();
   const [tab, setTab] = useState('documents'),
     [status, setStatus] = useState(''),
     [offset, setOffset] = useState(0);
+  const [focusedId, setFocusedId] = useState(
+    p.navigationTarget?.documentId || '',
+  );
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true);
@@ -34,16 +38,22 @@ export function Accounting(p: ViewProps) {
     [dialog, setDialog] = useState<any>(null),
     [form, setForm] = useState<any>({});
   const [busy, setBusy] = useState(false),
+    [exporting, setExporting] = useState(false),
     [formError, setFormError] = useState(''),
     [preview, setPreview] = useState<any>(null);
   const retry = useRef({ key: '', id: '' });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [uncertain, setUncertain] = useState(false);
+  const submitting = useRef(false);
+  const exportController = useRef<AbortController | null>(null);
+  useEffect(() => () => exportController.current?.abort(), []);
   const pristine = useRef('');
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError('');
     fetch(
-      `/api/accounting?tab=${tab}&status=${encodeURIComponent(status)}&offset=${offset}&month=${p.month}`,
+      `/api/accounting?tab=${tab}&status=${encodeURIComponent(status)}&offset=${offset}&month=${p.month}${focusedId ? '&id=' + encodeURIComponent(focusedId) : ''}`,
       { signal: controller.signal, cache: 'no-store' },
     )
       .then(async (r) => {
@@ -64,24 +74,41 @@ export function Accounting(p: ViewProps) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [tab, status, offset, version, p.snapshot.loadedAt, p.month]);
+  }, [tab, status, offset, version, p.snapshot.loadedAt, p.month, focusedId]);
   useEffect(() => setOffset(0), [p.month]);
+  useEffect(() => {
+    if (p.navigationTarget?.status === 'Submitted') {
+      setTab('documents');
+      setStatus('Submitted');
+      setOffset(0);
+    }
+    setFocusedId(p.navigationTarget?.documentId || '');
+    if (p.navigationTarget?.documentId) {
+      setTab('documents');
+      setStatus('');
+      setOffset(0);
+    }
+  }, [p.navigationTarget]);
   async function command(input: any) {
     const key = JSON.stringify(input);
     if (retry.current.key !== key)
       retry.current = { key, id: crypto.randomUUID() };
+    if (input.operation === 'pay') setUncertain(true);
     const r = await fetch('/api/accounting', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...input, commandId: retry.current.id }),
     });
     const j: any = await r.json();
+    setUncertain(false);
     if (!r.ok) throw Error(j.error || 'Could not save.');
     retry.current = { key: '', id: '' };
     return j;
   }
   function open(type: string, row?: any, action?: string) {
     setFormError('');
+    setFieldErrors({});
+    setUncertain(false);
     setPreview(null);
     retry.current = { key: '', id: '' };
     setDialog({ type, row, action, id: row?.id || crypto.randomUUID() });
@@ -106,23 +133,34 @@ export function Accounting(p: ViewProps) {
               note: '',
               kind: 'bill',
             }
-          : type === 'settle'
+          : type === 'pay'
             ? {
-                cashRecordId: '',
-                amount: Math.max(0, Number(row.amount) - Number(row.paid || 0)),
-                evidence: '',
-              }
-            : {
-                kind: 'bill',
                 date: today(),
-                title: '',
-                counterparty: '',
-                amount: 0,
-                notes: '',
-                lines: [],
-                ...row,
-                dueDate: row?.due_date || '',
-              };
+                amount: Math.max(0, Number(row.amount) - Number(row.paid || 0)),
+                account: '',
+                evidence: '',
+                category: 'Other',
+              }
+            : type === 'settle'
+              ? {
+                  cashRecordId: '',
+                  amount: Math.max(
+                    0,
+                    Number(row.amount) - Number(row.paid || 0),
+                  ),
+                  evidence: '',
+                }
+              : {
+                  kind: 'bill',
+                  date: today(),
+                  title: '',
+                  counterparty: '',
+                  amount: 0,
+                  notes: '',
+                  lines: [],
+                  ...row,
+                  dueDate: row?.due_date || '',
+                };
     pristine.current = JSON.stringify(initial);
     setForm(initial);
   }
@@ -142,6 +180,33 @@ export function Accounting(p: ViewProps) {
   };
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting.current) return;
+    const errors: Record<string, string> = {};
+    if (
+      ['document', 'pay', 'settle'].includes(dialog.type) &&
+      (typeof form.amount !== 'number' ||
+        !Number.isSafeInteger(form.amount) ||
+        form.amount < (dialog.type === 'document' ? 0 : 1))
+    )
+      errors.amount = 'Enter a valid whole VND amount.';
+    if (dialog.type === 'pay') {
+      for (const key of ['date', 'account', 'evidence'])
+        if (!String(form[key] || '').trim())
+          errors[key] = 'This information is required.';
+      if (form.date > today())
+        errors.date = 'Choose today or an earlier payment date.';
+      if (
+        typeof form.amount === 'number' &&
+        form.amount > Number(dialog.row.amount) - Number(dialog.row.paid || 0)
+      )
+        errors.amount = 'Payment exceeds the remaining bill balance.';
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      document.getElementById('accounting-' + Object.keys(errors)[0])?.focus();
+      return;
+    }
+    submitting.current = true;
     setBusy(true);
     setFormError('');
     try {
@@ -166,9 +231,11 @@ export function Accounting(p: ViewProps) {
       }
       setDialog(null);
       setVersion((v) => v + 1);
+      await p.refresh?.();
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Could not save.');
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -203,55 +270,89 @@ export function Accounting(p: ViewProps) {
       setFormError(e instanceof Error ? e.message : 'Could not read file.');
     }
   }
-  function exportPage() {
-    const headings =
-      tab === 'imports'
-        ? [
-            'Source',
-            'Dataset',
-            'Document ID',
-            'Date',
-            'Amount',
-            'Status',
-            'Evidence',
-          ]
-        : [
-            'ID',
-            'Type',
-            'Date',
-            'Title',
-            'Amount',
-            'Status',
-            'Matched payments',
-          ];
-    const rows = (data?.rows || []).map((r: any) =>
-      tab === 'imports'
-        ? [
-            r.source,
-            r.dataset,
-            r.external_id,
-            r.document_date,
-            r.amount,
-            r.status,
-            r.review_note,
-          ]
-        : [r.id, r.kind, r.date, r.title, r.amount, r.status, r.paid],
-    );
-    const blob = new Blob(
-      [
-        '\uFEFF' +
-          [headings, ...rows]
-            .map((row: any[]) => row.map(csvCell).join(','))
-            .join('\r\n'),
-      ],
-      { type: 'text/csv;charset=utf-8' },
-    );
-    const url = URL.createObjectURL(blob),
-      a = document.createElement('a');
-    a.href = url;
-    a.download = `BOH-accounting-${tab}-page-${offset / 50 + 1}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function exportAll() {
+    exportController.current?.abort();
+    const controller = new AbortController();
+    exportController.current = controller;
+    setExporting(true);
+    setError('');
+    try {
+      const r = await fetch(
+        `/api/accounting?export=1&tab=${tab}&status=${encodeURIComponent(status)}&month=${p.month}${focusedId ? '&id=' + encodeURIComponent(focusedId) : ''}`,
+        { cache: 'no-store', signal: controller.signal },
+      );
+      const exported: any = await r.json();
+      if (!r.ok) throw Error(exported.error || 'Could not export records.');
+      if (controller.signal.aborted) return;
+      const headings =
+        tab === 'imports'
+          ? [
+              'Source',
+              'Dataset',
+              'Document ID',
+              'Date',
+              'Amount',
+              'Status',
+              'Evidence',
+            ]
+          : [
+              'ID',
+              'Type',
+              'Date',
+              'Title',
+              'Amount',
+              'Status',
+              'Allocated payments',
+            ];
+      const rows = exported.rows.map((r: any) =>
+        tab === 'imports'
+          ? [
+              r.source,
+              r.dataset,
+              r.external_id,
+              r.document_date,
+              r.amount,
+              r.status,
+              r.review_note,
+            ]
+          : [r.id, r.kind, r.date, r.title, r.amount, r.status, r.paid],
+      );
+      const blob = new Blob(
+        [
+          '\uFEFF' +
+            [
+              [
+                'BOH',
+                tab,
+                'Period',
+                exported.month,
+                'Status filter',
+                exported.status || 'All',
+              ],
+              ['Generated at', exported.generatedAt, 'Basis', exported.basis],
+              ...(exported.selectedDocumentId
+                ? [['Selected document', exported.selectedDocumentId]]
+                : []),
+              headings,
+              ...rows,
+            ]
+              .map((row: any[]) => row.map(csvCell).join(','))
+              .join('\r\n'),
+        ],
+        { type: 'text/csv;charset=utf-8' },
+      );
+      const url = URL.createObjectURL(blob),
+        a = document.createElement('a');
+      a.href = url;
+      a.download = `BOH-accounting-${tab}-${p.month}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setError(e instanceof Error ? e.message : 'Could not export records.');
+    } finally {
+      if (!controller.signal.aborted) setExporting(false);
+    }
   }
   const options =
     tab === 'imports'
@@ -271,18 +372,60 @@ export function Accounting(p: ViewProps) {
     type = 'text',
     required = false,
   ) => (
-    <label className="form-field">
-      {t(label)}
-      <input
-        value={form[key] ?? ''}
-        type={type}
-        required={required}
-        min={type === 'number' ? 0 : undefined}
-        step={type === 'number' ? 1 : undefined}
-        onChange={(e) =>
-          set(key, type === 'number' ? Number(e.target.value) : e.target.value)
-        }
-      />
+    <label className="form-field" htmlFor={'accounting-' + key}>
+      {t(label)}{' '}
+      <span className="field-optional">
+        {t(required ? 'Required' : 'Optional')}
+      </span>
+      {key === 'amount' ? (
+        <MoneyInput
+          id={'accounting-' + key}
+          label={t(label)}
+          value={form[key] ?? ''}
+          onChange={(v) => set(key, v)}
+          invalid={!!fieldErrors[key]}
+          describedBy={'accounting-help-' + key}
+        />
+      ) : (
+        <input
+          id={'accounting-' + key}
+          value={form[key] ?? ''}
+          type={type}
+          required={required}
+          min={type === 'number' ? 0 : undefined}
+          step={type === 'number' ? 1 : undefined}
+          max={key === 'date' && dialog?.type === 'pay' ? today() : undefined}
+          list={key === 'account' ? 'accounting-accounts' : undefined}
+          aria-invalid={!!fieldErrors[key] || undefined}
+          aria-describedby={'accounting-help-' + key}
+          onChange={(e) =>
+            set(
+              key,
+              type === 'number' ? Number(e.target.value) : e.target.value,
+            )
+          }
+        />
+      )}
+      {key === 'account' && (
+        <datalist id="accounting-accounts">
+          {[
+            ...new Set(
+              p.snapshot.records
+                .map((r) => r.payload.account)
+                .filter((v) => typeof v === 'string' && v),
+            ),
+          ].map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+      )}
+      <span
+        id={'accounting-help-' + key}
+        className="field-error"
+        role={fieldErrors[key] ? 'alert' : undefined}
+      >
+        {fieldErrors[key] && t(fieldErrors[key])}
+      </span>
     </label>
   );
   return (
@@ -343,6 +486,7 @@ export function Accounting(p: ViewProps) {
             variant={tab === value ? 'default' : 'outline'}
             aria-pressed={tab === value}
             onClick={() => {
+              setFocusedId('');
               setTab(value);
               setStatus('');
               setOffset(0);
@@ -355,6 +499,7 @@ export function Accounting(p: ViewProps) {
           label={t('Status')}
           value={status}
           onChange={(v) => {
+            setFocusedId('');
             setStatus(v);
             setOffset(0);
           }}
@@ -372,13 +517,25 @@ export function Accounting(p: ViewProps) {
         </Button>
         <Button
           variant="outline"
-          disabled={!data?.rows?.length}
-          onClick={exportPage}
+          disabled={loading || exporting || !data?.total}
+          onClick={exportAll}
         >
           <Download size={16} />
-          {t('Export this page')}
+          {t(exporting ? 'Preparing export…' : 'Export all matching records')}
         </Button>
       </div>
+      {focusedId && (
+        <div className="accounting-notice">
+          <span>
+            {t(
+              'Showing the document selected from Today, with its current status.',
+            )}
+          </span>
+          <Button variant="outline" onClick={() => setFocusedId('')}>
+            {t('Show all documents')}
+          </Button>
+        </div>
+      )}
       {error && (
         <p role="alert" className="form-error">
           {message(error)}
@@ -408,7 +565,7 @@ export function Accounting(p: ViewProps) {
                       'Document',
                       'Date',
                       'Amount',
-                      'Matched payments',
+                      'Allocated payments',
                       'Status',
                       'Review / actions',
                     ]
@@ -493,6 +650,16 @@ export function Accounting(p: ViewProps) {
                             </Button>
                           )}
                         {['Approved', 'Posted'].includes(r.status) &&
+                          r.kind === 'bill' &&
+                          Number(r.paid) < Number(r.amount) && (
+                            <Button
+                              variant="outline"
+                              onClick={() => open('pay', r)}
+                            >
+                              {t('Record bill payment')}
+                            </Button>
+                          )}
+                        {['Approved', 'Posted'].includes(r.status) &&
                           r.kind !== 'journal' &&
                           Number(r.paid) < Number(r.amount) && (
                             <Button
@@ -564,7 +731,7 @@ export function Accounting(p: ViewProps) {
           if (!v) dismiss();
         }}
       >
-        <DialogContent className="record-dialog">
+        <DialogContent className="record-dialog entry-dialog">
           <DialogHeader>
             <DialogTitle>
               {t(
@@ -572,13 +739,15 @@ export function Accounting(p: ViewProps) {
                   ? 'Import CSV'
                   : dialog?.type === 'review'
                     ? 'Review source record'
-                    : dialog?.type === 'settle'
-                      ? 'Match existing payment'
-                      : dialog?.type === 'history'
-                        ? 'Record history'
-                        : dialog?.type === 'confirm'
-                          ? 'Confirm action'
-                          : 'Financial document',
+                    : dialog?.type === 'pay'
+                      ? 'Record bill payment'
+                      : dialog?.type === 'settle'
+                        ? 'Match existing payment'
+                        : dialog?.type === 'history'
+                          ? 'Record history'
+                          : dialog?.type === 'confirm'
+                            ? 'Confirm action'
+                            : 'Financial document',
               )}
             </DialogTitle>
             <DialogDescription>
@@ -588,8 +757,12 @@ export function Accounting(p: ViewProps) {
             </DialogDescription>
           </DialogHeader>
           {dialog && (
-            <form onSubmit={submit}>
-              <div className="accounting-form">
+            <form onSubmit={submit} noValidate={dialog.type === 'pay'}>
+              <fieldset
+                className="accounting-form"
+                disabled={busy || uncertain}
+                inert={busy || uncertain}
+              >
                 {formError && (
                   <p className="form-error wide" role="alert">
                     {message(formError)}
@@ -869,6 +1042,89 @@ export function Accounting(p: ViewProps) {
                     </label>
                   </>
                 )}
+                {dialog.type === 'pay' && (
+                  <>
+                    <div className="wide accounting-notice">
+                      <strong>
+                        {dialog.row.title} ·{' '}
+                        {money(
+                          Number(dialog.row.amount) -
+                            Number(dialog.row.paid || 0),
+                        )}
+                      </strong>
+                      <p>
+                        {t(
+                          'Record money actually paid. This creates one cash entry linked to this bill. Bank verification is a separate step.',
+                        )}
+                      </p>
+                    </div>
+                    {field('date', 'Payment date', 'date', true)}
+                    {field('amount', 'Amount (VND)', 'number', true)}
+                    {field('account', 'Paying account', 'text', true)}
+                    <label>
+                      {t('Category')}
+                      <Choice
+                        label={t('Category')}
+                        value={form.category}
+                        onChange={(v) => set('category', v)}
+                        options={[
+                          'Rent',
+                          'Utilities',
+                          'Teaching',
+                          'Books',
+                          'Marketing',
+                          'Insurance',
+                          'Bank fees',
+                          'Office',
+                          'Other',
+                        ].map((v) => ({ value: v, label: t(v) }))}
+                      />
+                    </label>
+                    {field(
+                      'evidence',
+                      'Payment reference / evidence',
+                      'text',
+                      true,
+                    )}
+                    <p className="wide">
+                      {t(
+                        'If this payment is already in Finance, cancel and choose Match existing payment.',
+                      )}
+                    </p>
+                    <div className="wide">
+                      <FinancialReview
+                        items={[
+                          {
+                            label: 'Supplier / employee',
+                            value: dialog.row.counterparty || dialog.row.title,
+                          },
+                          {
+                            label: 'Amount (VND)',
+                            value:
+                              typeof form.amount === 'number'
+                                ? money(form.amount) + ' VND'
+                                : '—',
+                          },
+                          {
+                            label: 'Paying account',
+                            value: form.account || t('Not recorded'),
+                          },
+                          {
+                            label: 'Remaining after payment',
+                            value:
+                              typeof form.amount === 'number'
+                                ? money(
+                                    Number(dialog.row.amount) -
+                                      Number(dialog.row.paid || 0) -
+                                      form.amount,
+                                  ) + ' VND'
+                                : '—',
+                          },
+                        ]}
+                      />
+                    </div>
+                  </>
+                )}
                 {dialog.type === 'settle' && (
                   <>
                     <div className="wide accounting-notice">
@@ -940,7 +1196,14 @@ export function Accounting(p: ViewProps) {
                     />
                   </div>
                 )}
-              </div>
+              </fieldset>
+              {uncertain && !busy && (
+                <p className="error-message" role="alert">
+                  {t(
+                    'The save result is uncertain. Retry the same entry to recover its result without recording it twice.',
+                  )}
+                </p>
+              )}
               <div className="accounting-footer">
                 <Button
                   type="button"
@@ -955,13 +1218,19 @@ export function Accounting(p: ViewProps) {
                     {t(
                       busy
                         ? 'Saving…'
-                        : dialog.type === 'import'
-                          ? preview
-                            ? 'Save to review'
-                            : 'Preview import'
-                          : dialog.type === 'confirm'
-                            ? 'Confirm'
-                            : 'Save record',
+                        : uncertain
+                          ? 'Retry save'
+                          : dialog.type === 'import'
+                            ? preview
+                              ? 'Save to review'
+                              : 'Preview import'
+                            : dialog.type === 'confirm'
+                              ? 'Confirm'
+                              : dialog.type === 'pay'
+                                ? 'Record bill payment'
+                                : dialog.type === 'settle'
+                                  ? 'Match existing payment'
+                                  : 'Save record',
                     )}
                   </Button>
                 )}
