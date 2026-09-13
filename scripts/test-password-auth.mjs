@@ -92,6 +92,7 @@ const viewsUrl = url(
 const accountingUrl = url(
   fs
     .readFileSync('lib/accounting-server.ts', 'utf8')
+    .replaceAll("from './receipt-accounts'", `from '${accountUrl}'`)
     .replaceAll("from './server'", `from '${serverUrl}'`)
     .replaceAll("from './storage'", `from '${storage}'`)
     .replaceAll("from './accounting'", `from '${accountingDomainUrl}'`),

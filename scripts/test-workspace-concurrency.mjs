@@ -2,7 +2,7 @@
 // Synthetic committed fixtures are removed in finally; live databases are never targeted.
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-const database = 'boh_upgrade_workspace_20260913';
+const database = 'boh_company_restore_20260913';
 const container = 'supabase_db_Ben-Oxford-Hub';
 const runId = crypto.randomUUID();
 const actor = 'qa-concurrent-' + runId;
@@ -17,15 +17,11 @@ function sql(query) {
       'exec',
       '-i',
       container,
-      'psql',
-      '-X',
-      '-qAt',
-      '-U',
-      'postgres',
-      '-d',
-      database,
-      '-v',
-      'ON_ERROR_STOP=1',
+      'sh',
+      '-c',
+      'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -h 127.0.0.1 -X -qAt -U supabase_admin -d ' +
+        database +
+        ' -v ON_ERROR_STOP=1',
     ]);
     let out = '',
       err = '';
@@ -52,7 +48,10 @@ const pay = (id, commandId, amount) => ({
   payload: {
     date: day,
     amount,
-    account: 'QA only',
+    account: 'Company BIDV',
+    name: 'Synthetic recipient',
+    recipientBank: 'Example bank',
+    recipientAccount: '00123456789',
     category: 'Rent',
     evidence: 'Synthetic concurrency check',
   },
@@ -108,7 +107,7 @@ try {
           month: day.slice(0, 7),
           amount: 5,
           description: 'Synthetic entry',
-          account: 'QA only',
+          account: 'Company BIDV',
         },
       },
     },

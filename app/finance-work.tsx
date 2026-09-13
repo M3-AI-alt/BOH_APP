@@ -83,6 +83,7 @@ export function Payroll(p: ViewProps) {
                     p.open('expense', undefined, {
                       date: today(),
                       payrollId: r.id,
+                      name: r.name,
                       category: 'Payroll',
                       description: 'Salary ' + r.month + ' · ' + r.name,
                       amount: r.net - paid,

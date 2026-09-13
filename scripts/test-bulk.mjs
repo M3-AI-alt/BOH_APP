@@ -329,6 +329,54 @@ test('invalid and oversized Excel archives are rejected', () => {
   assert.throws(() => b.checkXlsxArchive(Buffer.alloc(22)), /Invalid/);
   assert.throws(() => b.checkXlsxArchive(Buffer.alloc(2000001)), /smaller/);
 });
+test('expense worksheet recipient details round trip without losing leading zeros or bypassing source policy', async () => {
+  setup();
+  const JSZip = require('jszip');
+  const zip = await JSZip.loadAsync(
+    fs.readFileSync('public/templates/BOH-expense.xlsx'),
+  );
+  const path = 'xl/worksheets/sheet1.xml';
+  let xml = await zip.file(path).async('string');
+  for (const [col, value] of Object.entries({
+    A: 'RECIPIENT-TEST-001',
+    C: '2026-09-12',
+    D: 'Other',
+    E: 'Synthetic payment',
+    F: '50',
+    G: 'Company BIDV',
+    H: 'Nguyễn Test',
+    I: 'Example bank',
+    J: '00123456789',
+  }))
+    xml = xml.replace(
+      new RegExp(`<x:c r="${col}2"[^>]*/>`),
+      `<x:c r="${col}2" t="str"><x:v>${value}</x:v></x:c>`,
+    );
+  zip.file(path, xml);
+  const text = await b.readWorksheet(
+    await zip.generateAsync({ type: 'base64' }),
+  );
+  const rows = b.worksheetRows(text, 'expense');
+  assert.equal(rows[0].recipientAccount, '00123456789');
+  const preview = await b.bulkPreview(actor, 'expense', text);
+  assert.equal(preview.rows[0].status, 'Ready');
+  await b.bulkCommit(actor, 'expense', text, preview.digest);
+  const stored = globalThis.__bulk.records.find((r) => r.kind === 'expense');
+  assert.equal(stored.payload.name, 'Nguyễn Test');
+  assert.equal(stored.payload.recipientBank, 'Example bank');
+  assert.equal(stored.payload.recipientAccount, '00123456789');
+  const exported = await b.exportRecords(actor, 'expense');
+  assert.ok(exported.includes('00123456789'));
+  const bad = await b.bulkPreview(
+    actor,
+    'expense',
+    text
+      .replace('RECIPIENT-TEST-001', 'RECIPIENT-TEST-002')
+      .replace('Company BIDV', 'Thao personal BIDV'),
+  );
+  assert.equal(bad.rows[0].status, 'Needs correction');
+  assert.equal(globalThis.__bulk.saved, 1);
+});
 test('filled Excel template retains Unicode, amounts and text dates', async () => {
   const JSZip = require('jszip');
   const zip = await JSZip.loadAsync(

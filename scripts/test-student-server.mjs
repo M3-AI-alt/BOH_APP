@@ -269,10 +269,49 @@ test('normal reconciliation preserves the material shape of a bill-generated exp
       kind: 'expense',
       id: 'bill-cash',
       revision: 1,
-      payload: { reconciled: true },
+      payload: { reconciled: true, recipientBank: '', recipientAccount: '' },
     },
   );
   assert.deepEqual(command.record.payload, { ...payload, reconciled: true });
+});
+test('expense recipient bank numbers remain text and company cash source is enforced', async () => {
+  setup();
+  const payload = {
+    date: '2026-09-12',
+    amount: 50,
+    category: 'Other',
+    description: 'Synthetic expense',
+    account: 'Company BIDV',
+    name: 'Sample recipient',
+    recipientBank: 'Example bank',
+    recipientAccount: '00123456789',
+  };
+  for (const role of ['Director', 'Finance']) {
+    const result = await server.prepareRecord(
+      { ...actor, role },
+      { kind: 'expense', payload },
+    );
+    assert.equal(result.record.payload.recipientAccount, '00123456789');
+    assert.equal(result.record.payload.name, 'Sample recipient');
+    for (const change of [
+      { account: 'Thao personal BIDV' },
+      { account: 'Another person' },
+      { recipientAccount: 1234 },
+      { name: '' },
+    ])
+      await assert.rejects(
+        server.prepareRecord(
+          { ...actor, role },
+          { kind: 'expense', payload: { ...payload, ...change } },
+        ),
+      );
+  }
+  await assert.rejects(
+    server.prepareRecord(
+      { ...actor, role: 'TA' },
+      { kind: 'expense', payload },
+    ),
+  );
 });
 test('Finance snapshot history excludes inaccessible admissions and staff changes', async () => {
   const state = setup();

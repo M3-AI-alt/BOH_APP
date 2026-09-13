@@ -1391,6 +1391,8 @@ export function Finance(p: ViewProps) {
         x.description,
         x.account,
         x.category,
+        x.recipientBank,
+        x.recipientAccount,
       ].join(' '),
     ).includes(cleanSearch(financeSearch));
   const cashMatch = (x: any, spec: FilterSpec) =>
@@ -1417,6 +1419,8 @@ export function Finance(p: ViewProps) {
         x.name,
         x.description,
         x.reference,
+        x.recipientBank,
+        x.recipientAccount,
         x.account,
         x.category,
         t(x.category || ''),
@@ -1536,6 +1540,9 @@ export function Finance(p: ViewProps) {
                 'Amount',
                 'Account',
                 'Reference',
+                'Recipient / account holder',
+                'Recipient bank',
+                'Recipient account number',
               ].map((h) => t(h)),
               ...(tab === 'expenses' ? [] : rec).map((r) => [
                 t('Receipt'),
@@ -1544,6 +1551,9 @@ export function Finance(p: ViewProps) {
                 r.amount,
                 r.account,
                 r.reference,
+                '',
+                '',
+                '',
               ]),
               ...(tab === 'receipts' ? [] : exp).map((r) => [
                 t('Expense'),
@@ -1552,6 +1562,9 @@ export function Finance(p: ViewProps) {
                 typeof r.amount === 'number' ? r.amount : r.originalAmount,
                 r.account,
                 r.reference,
+                r.name || '',
+                r.recipientBank || '',
+                r.recipientAccount || '',
               ]),
             ])
           }
@@ -1812,7 +1825,19 @@ export function Finance(p: ViewProps) {
               rows={exp.map((r) => [
                 r.date ?? t('Not recorded'),
                 <Badge>{r.category}</Badge>,
-                <div className="long-cell">{r.description}</div>,
+                <div className="long-cell">
+                  {r.description}
+                  {[r.name, r.recipientBank, r.recipientAccount].some(
+                    Boolean,
+                  ) && (
+                    <small>
+                      {t('Recipient details')}:{' '}
+                      {[r.name, r.recipientBank, r.recipientAccount]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </small>
+                  )}
+                </div>,
                 typeof r.amount === 'number' ? (
                   <strong className="amount">{money(r.amount)}</strong>
                 ) : (

@@ -2,6 +2,9 @@
 
 Policy confirmed by the founder on 13 September 2026.
 
+Outgoing payment sources and manually entered payee bank details are covered by
+[Company expense sources and recipient details](EXPENSE-RECIPIENTS.md).
+
 ## Daily collections
 
 New receipt entry and operational worksheet imports allow **Company BIDV** and **Company VCB** only. These are the existing named company accounts; no bank details or additional destinations were invented. The account must be selected explicitly. Karam Mouelhi, Founder and Director, is responsible for company accounts.

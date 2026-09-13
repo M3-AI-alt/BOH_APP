@@ -32,6 +32,9 @@ import {
   receivingAccountChoices,
   isCompanyReceivingAccount,
   LEGACY_ACCOUNT_HELP,
+  expenseAccountError,
+  payingAccountChoices,
+  LEGACY_PAYING_ACCOUNT_HELP,
 } from '@/lib/receipt-accounts';
 import type { Role } from '@/lib/types';
 import {
@@ -393,8 +396,10 @@ export default function RecordForm({
     e.preventDefault();
     if (submitting.current) return;
     const validation = entryErrors(kind, data);
-    if (kind === 'receipt') {
-      const accountError = receiptAccountError(data, record?.payload);
+    if (['receipt', 'expense'].includes(kind)) {
+      const accountError = (
+        kind === 'receipt' ? receiptAccountError : expenseAccountError
+      )(data, record?.payload);
       if (accountError) validation.account = accountError;
     }
     const relevant =
@@ -489,19 +494,31 @@ export default function RecordForm({
       describedBy: 'help-' + f.key,
       required: f.required,
     };
-    if (kind === 'receipt' && f.key === 'account')
+    if (['receipt', 'expense'].includes(kind) && f.key === 'account')
       return (
         <>
           <Picker
             {...guidance}
             id="field-account"
-            label={t('Choose a company receiving account')}
+            label={t(
+              kind === 'receipt'
+                ? 'Choose a company receiving account'
+                : 'Choose a company paying account',
+            )}
             value={v}
             onChange={(value) => set('account', value)}
-            options={receivingAccountChoices(record?.payload)}
+            options={(kind === 'receipt'
+              ? receivingAccountChoices
+              : payingAccountChoices)(record?.payload)}
           />
           {record?.payload?.account === v && !isCompanyReceivingAccount(v) && (
-            <p className="field-help">{t(LEGACY_ACCOUNT_HELP)}</p>
+            <p className="field-help">
+              {t(
+                kind === 'receipt'
+                  ? LEGACY_ACCOUNT_HELP
+                  : LEGACY_PAYING_ACCOUNT_HELP,
+              )}
+            </p>
           )}
         </>
       );
@@ -1170,13 +1187,13 @@ export default function RecordForm({
               )}
               {((record?.payload?.imported &&
                 ['receipt', 'expense'].includes(kind)) ||
-                (kind === 'receipt' &&
+                (['receipt', 'expense'].includes(kind) &&
                   record?.id &&
                   data.account !== record.payload?.account)) && (
                 <div className="wide form-field">
                   <label htmlFor="correction-reason">
                     {t(
-                      'Reason for correcting the original amount or receiving account',
+                      'Reason for correcting the original amount or company account',
                     )}
                   </label>
                   <input

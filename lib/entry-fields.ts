@@ -111,7 +111,16 @@ export const fields: Record<string, Field[]> = {
       type: 'number',
       required: true,
     },
-    { key: 'account', label: 'Paying account', required: true },
+    {
+      key: 'account',
+      label: 'Company paying account',
+      type: 'select',
+      options: COMPANY_RECEIVING_ACCOUNTS,
+      required: true,
+    },
+    { key: 'name', label: 'Recipient / account holder' },
+    { key: 'recipientBank', label: 'Recipient bank' },
+    { key: 'recipientAccount', label: 'Recipient account number' },
     { key: 'reference', label: 'Invoice / reference' },
     {
       key: 'reconciled',

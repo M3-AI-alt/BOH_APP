@@ -22,6 +22,12 @@ import { csvCell, documentKinds, parseSourceCsv } from '@/lib/accounting';
 import { entries, today } from '@/lib/domain';
 import type { ViewProps } from './views';
 import { MoneyInput, FinancialReview } from './entry-controls';
+import {
+  payingAccountChoices,
+  expenseAccountError,
+  recipientErrors,
+  PAYING_ACCOUNT_HELP,
+} from '@/lib/receipt-accounts';
 
 export function Accounting(p: ViewProps) {
   const { t, message, money } = useLanguage();
@@ -101,7 +107,15 @@ export function Accounting(p: ViewProps) {
     });
     const j: any = await r.json();
     setUncertain(false);
-    if (!r.ok) throw Error(j.error || 'Could not save.');
+    if (!r.ok) {
+      if (j.fieldErrors) {
+        setFieldErrors(j.fieldErrors);
+        document
+          .getElementById('accounting-' + Object.keys(j.fieldErrors)[0])
+          ?.focus();
+      }
+      throw Error(j.error || 'Could not save.');
+    }
     retry.current = { key: '', id: '' };
     return j;
   }
@@ -138,6 +152,9 @@ export function Accounting(p: ViewProps) {
                 date: today(),
                 amount: Math.max(0, Number(row.amount) - Number(row.paid || 0)),
                 account: '',
+                name: row.counterparty || '',
+                recipientBank: '',
+                recipientAccount: '',
                 evidence: '',
                 category: 'Other',
               }
@@ -190,6 +207,9 @@ export function Accounting(p: ViewProps) {
     )
       errors.amount = 'Enter a valid whole VND amount.';
     if (dialog.type === 'pay') {
+      Object.assign(errors, recipientErrors(form));
+      const accountError = expenseAccountError(form);
+      if (accountError) errors.account = accountError;
       for (const key of ['date', 'account', 'evidence'])
         if (!String(form[key] || '').trim())
           errors[key] = 'This information is required.';
@@ -386,6 +406,17 @@ export function Accounting(p: ViewProps) {
           invalid={!!fieldErrors[key]}
           describedBy={'accounting-help-' + key}
         />
+      ) : key === 'account' ? (
+        <Picker
+          id="accounting-account"
+          label={t('Company paying account')}
+          value={form.account || ''}
+          onChange={(v) => set('account', v)}
+          options={payingAccountChoices()}
+          invalid={!!fieldErrors.account}
+          required
+          describedBy="accounting-help-account"
+        />
       ) : (
         <input
           id={'accounting-' + key}
@@ -395,7 +426,6 @@ export function Accounting(p: ViewProps) {
           min={type === 'number' ? 0 : undefined}
           step={type === 'number' ? 1 : undefined}
           max={key === 'date' && dialog?.type === 'pay' ? today() : undefined}
-          list={key === 'account' ? 'accounting-accounts' : undefined}
           aria-invalid={!!fieldErrors[key] || undefined}
           aria-describedby={'accounting-help-' + key}
           onChange={(e) =>
@@ -406,19 +436,7 @@ export function Accounting(p: ViewProps) {
           }
         />
       )}
-      {key === 'account' && (
-        <datalist id="accounting-accounts">
-          {[
-            ...new Set(
-              p.snapshot.records
-                .map((r) => r.payload.account)
-                .filter((v) => typeof v === 'string' && v),
-            ),
-          ].map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
-      )}
+      {key === 'account' && <small>{t(PAYING_ACCOUNT_HELP)}</small>}
       <span
         id={'accounting-help-' + key}
         className="field-error"
@@ -1060,7 +1078,7 @@ export function Accounting(p: ViewProps) {
                     </div>
                     {field('date', 'Payment date', 'date', true)}
                     {field('amount', 'Amount (VND)', 'number', true)}
-                    {field('account', 'Paying account', 'text', true)}
+                    {field('account', 'Company paying account', 'text', true)}
                     <label>
                       {t('Category')}
                       <Choice
@@ -1080,6 +1098,10 @@ export function Accounting(p: ViewProps) {
                         ].map((v) => ({ value: v, label: t(v) }))}
                       />
                     </label>
+                    <h3 className="wide">{t('Recipient details')}</h3>
+                    {field('name', 'Recipient / account holder')}
+                    {field('recipientBank', 'Recipient bank')}
+                    {field('recipientAccount', 'Recipient account number')}
                     {field(
                       'evidence',
                       'Payment reference / evidence',
@@ -1106,8 +1128,19 @@ export function Accounting(p: ViewProps) {
                                 : '—',
                           },
                           {
-                            label: 'Paying account',
+                            label: 'Company paying account',
                             value: form.account || t('Not recorded'),
+                          },
+                          {
+                            label: 'Recipient details',
+                            value:
+                              [
+                                form.name,
+                                form.recipientBank,
+                                form.recipientAccount,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ') || t('Not recorded'),
                           },
                           {
                             label: 'Remaining after payment',

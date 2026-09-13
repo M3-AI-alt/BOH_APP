@@ -1,4 +1,5 @@
 import type { Actor } from './types';
+import { expenseAccountError, recipientErrors } from './receipt-accounts';
 import { AppError, requireRole } from './server';
 import { storeCall } from './storage';
 import {
@@ -200,6 +201,11 @@ export async function accountingCommand(a: Actor, input: any) {
         kind: p.kind,
       };
     } else if (input.operation === 'pay') {
+      const errors = recipientErrors(p);
+      const accountError = expenseAccountError(p);
+      if (accountError) errors.account = accountError;
+      if (Object.keys(errors).length)
+        throw new AppError(Object.values(errors)[0], 400, errors);
       if (!validDate(p.date)) throw new AppError('Check the payment date.');
       if (!Number.isSafeInteger(p.amount) || p.amount <= 0 || p.amount > 1e12)
         throw new AppError('Enter an amount in whole VND.');
@@ -222,6 +228,9 @@ export async function accountingCommand(a: Actor, input: any) {
         amount: p.amount,
         category: p.category,
         account: bounded(p.account, 100, true),
+        name: bounded(p.name || '', 160),
+        recipientBank: bounded(p.recipientBank || '', 100),
+        recipientAccount: bounded(p.recipientAccount || '', 100),
         evidence: bounded(p.evidence, 1000, true),
       };
     } else if (input.operation === 'settle') {

@@ -28,6 +28,8 @@ const samples = {
   opening: 0,
   statementClosing: 0,
   account: 'Company BIDV',
+  recipientBank: 'Example bank',
+  recipientAccount: '00123456789',
   description: 'Example only',
   notes: 'Example only',
   month: '2026-10',
@@ -111,7 +113,9 @@ for (const task of tasks) {
     .write(
       task.fields.map((f) => [
         f.key,
-        f.label.includes(' / ') ? f.label : f.label + ' / ' + (f.key === 'month' ? 'Tháng' : f.vi),
+        f.label.includes(' / ')
+          ? f.label
+          : f.label + ' / ' + (f.key === 'month' ? 'Tháng' : f.vi),
         f.required ? 'Yes / Có' : 'No / Không',
         f.options?.join(', ') ||
           (f.type === 'date'
@@ -125,15 +129,21 @@ for (const task of tasks) {
                   : f.type === 'number'
                     ? 'Whole number / Số nguyên'
                     : 'Text / Văn bản'),
-        f.key === 'name' && task.kind === 'payroll' ? 'Example Employee' : f.key === 'name' && task.kind === 'class' ? 'BOH Example Class' : f.key === 'status'
-          ? f.options?.[0] || ''
-          : (samples[f.key] ??
-            (f.options?.[0] ||
-              (f.type === 'date'
-                ? '2026-10-01'
-                : f.type === 'checkbox'
-                  ? 'false'
-                  : ''))),
+        f.key === 'name' && task.kind === 'expense'
+          ? 'Sample supplier'
+          : f.key === 'name' && task.kind === 'payroll'
+            ? 'Example Employee'
+            : f.key === 'name' && task.kind === 'class'
+              ? 'BOH Example Class'
+              : f.key === 'status'
+                ? f.options?.[0] || ''
+                : (samples[f.key] ??
+                  (f.options?.[0] ||
+                    (f.type === 'date'
+                      ? '2026-10-01'
+                      : f.type === 'checkbox'
+                        ? 'false'
+                        : ''))),
       ]),
     );
   guide.getRange('A4:E' + (11 + task.fields.length)).format.font = {

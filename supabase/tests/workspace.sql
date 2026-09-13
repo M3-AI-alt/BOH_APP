@@ -22,7 +22,7 @@ begin
  select count(*) into baseline from public.boh_records where kind='expense';
  insert into public.boh_fin_documents(id,kind,date,title,amount,status,approved_by,approved_revision,created_by)
  values(doc,'bill',day::date,'Synthetic approved bill',100,'Approved','qa-work-director',1,'qa-work-finance');
- args=jsonb_build_object('actorId','qa-work-finance','commandId',cid,'id',doc,'revision',1,'payload',jsonb_build_object('date',day,'amount',60,'account','QA bank','evidence','QA transfer 1','category','Rent'));
+ args=jsonb_build_object('actorId','qa-work-finance','commandId',cid,'id',doc,'revision',1,'payload',jsonb_build_object('date',day,'amount',60,'account','Company BIDV','evidence','QA transfer 1','category','Rent'));
  r=public.boh_finance_workspace('fin_pay',args); saved=r; payment=args;
  perform pg_temp.assert_true(r->>'bankVerified'='false','bill payment does not assert bank verification');
  perform pg_temp.assert_true((select count(*) from public.boh_records where kind='expense')=baseline+1,'one payment creates exactly one expense');
@@ -62,7 +62,7 @@ begin
  perform pg_temp.assert_true((select count(*) from public.boh_records where kind='expense')=baseline+2,'saved draft never changes cash');
  -- Submission consumes its private draft in the same transaction as record creation.
  args=jsonb_build_object('actorId','qa-work-finance','commandId',entry,'kind','expense','classId','','requestHash',repeat('a',64),'draftId',draft,'draftRevision',1,
-   'command',jsonb_build_object('actorId','qa-work-finance','expectedRevision',null,'record',jsonb_build_object('id',entry,'kind','expense','date',day,'payload',jsonb_build_object('date',day,'month',left(day,7),'amount',5,'description','Synthetic expense','account','QA bank'))));
+   'command',jsonb_build_object('actorId','qa-work-finance','expectedRevision',null,'record',jsonb_build_object('id',entry,'kind','expense','date',day,'payload',jsonb_build_object('date',day,'month',left(day,7),'amount',5,'description','Synthetic expense','account','Company BIDV'))));
  r=public.boh_entry_command('entry_commit',args);saved=r;
  perform pg_temp.assert_true(not exists(select 1 from public.boh_entry_drafts where id=draft),'submitted draft is consumed atomically');
  perform pg_temp.assert_true(public.boh_entry_command('entry_result',args)=saved and public.boh_entry_command('entry_commit',args)=saved,'entry retries return original record');

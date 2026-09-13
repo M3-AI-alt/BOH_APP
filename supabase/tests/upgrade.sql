@@ -70,8 +70,8 @@ begin
  r=pg_temp.write_record('qa-payroll','payroll',payroll||'{"gross":1100}', 'qa-upgrade-finance',1);
  perform pg_temp.assert_true(r->'payload'->>'status'='Draft' and r->'payload'->>'approvedBy' is null,'payroll edits invalidate approval');
  r=pg_temp.write_record('qa-payroll','payroll',payroll,'qa-upgrade-director',2);
- perform pg_temp.write_record('qa-pay-one','expense','{"date":"2026-09-12","month":"2026-09","amount":400,"payrollId":"qa-payroll","description":"Salary","reconciled":true}','qa-upgrade-finance');
- perform pg_temp.write_record('qa-pay-two','expense','{"date":"2026-09-12","month":"2026-09","amount":500,"payrollId":"qa-payroll","description":"Salary","reconciled":true}','qa-upgrade-finance');
+ perform pg_temp.write_record('qa-pay-one','expense','{"date":"2026-09-12","month":"2026-09","amount":400,"payrollId":"qa-payroll","description":"Salary","reconciled":true,"account":"Company BIDV"}','qa-upgrade-finance');
+ perform pg_temp.write_record('qa-pay-two','expense','{"date":"2026-09-12","month":"2026-09","amount":500,"payrollId":"qa-payroll","description":"Salary","reconciled":true,"account":"Company BIDV"}','qa-upgrade-finance');
  perform pg_temp.fails($q$select pg_temp.write_record('qa-pay-extra','expense','{"date":"2026-09-12","month":"2026-09","amount":1,"payrollId":"qa-payroll"}','qa-upgrade-finance')$q$,'exceed');
  perform pg_temp.fails($q$select pg_temp.write_record('qa-pay-one','expense','{"date":"2026-09-12","month":"2026-09","amount":400,"payrollId":""}','qa-upgrade-finance',1)$q$,'detached');
  perform pg_temp.fails(format('select pg_temp.write_record(%L,%L,%L::jsonb,%L,3)','qa-payroll','payroll',(payroll||'{"gross":1200}')::text,'qa-upgrade-director'),'Paid payroll');
@@ -88,7 +88,7 @@ begin
  select x.id into source_id from public.boh_import_rows x where x.batch_id=upgrade.batch_id;
  select x.id into second_id from public.boh_import_rows x where x.batch_id<>upgrade.batch_id and x.external_id='BR-TEST';
  perform pg_temp.assert_true((select count(*) from public.boh_records where kind in ('receipt','expense'))=cash_count+2,'imports do not create any cash records');
- perform pg_temp.write_record('qa-cash','expense','{"date":"2026-09-12","month":"2026-09","amount":1000,"description":"Synthetic cash","reconciled":true}','qa-upgrade-finance');
+ perform pg_temp.write_record('qa-cash','expense','{"date":"2026-09-12","month":"2026-09","amount":1000,"description":"Synthetic cash","reconciled":true,"account":"Company BIDV"}','qa-upgrade-finance');
  perform pg_temp.fin('fin_review',jsonb_build_object('id',source_id,'revision',1,'payload',jsonb_build_object('status','Matched','recordId','qa-cash','note','Test evidence')));
  perform pg_temp.fin('fin_review',jsonb_build_object('id',second_id,'revision',1,'payload',jsonb_build_object('status','Matched','recordId','qa-cash','note','Same transaction in overlapping source view')));
  perform pg_temp.assert_true((select count(*) from public.boh_import_rows where matched_record_id='qa-cash')=2,'overlapping source views may corroborate one cash entry');

@@ -34,6 +34,9 @@ const {
   COMPANY_RECEIVING_ACCOUNTS,
   receiptAccountError,
   receivingAccountChoices,
+  expenseAccountError,
+  payingAccountChoices,
+  recipientErrors,
   allowedViews,
   draftKinds,
   bulkTasks,
@@ -41,6 +44,51 @@ const {
   canExport,
   canWrite,
 } = compiled.exports;
+void test('expense source and recipient fields are distinct, optional and validated', () => {
+  assert.deepEqual(
+    payingAccountChoices().map((x) => x.id),
+    COMPANY_RECEIVING_ACCOUNTS,
+  );
+  const fields = entryFields('expense');
+  assert.deepEqual(
+    fields.find((f) => f.key === 'account').options,
+    COMPANY_RECEIVING_ACCOUNTS,
+  );
+  assert.notEqual(
+    fields.find((f) => f.key === 'account').control,
+    'suggestion',
+  );
+  for (const key of ['name', 'recipientBank', 'recipientAccount'])
+    assert.ok(fields.find((f) => f.key === key));
+  const data = {
+    account: 'Company BIDV',
+    name: 'Sample recipient',
+    recipientBank: 'Example bank',
+    recipientAccount: '00123456789',
+  };
+  assert.equal(expenseAccountError(data), undefined);
+  assert.deepEqual(recipientErrors(data), {});
+  assert.deepEqual(recipientErrors({}), {});
+  assert.ok(recipientErrors({ ...data, name: '' }).name);
+  assert.ok(
+    recipientErrors({ ...data, recipientAccount: 1234 }).recipientAccount,
+  );
+  assert.ok(expenseAccountError({ ...data, account: 'Thao personal BIDV' }));
+  const old = {
+    ...data,
+    account: 'Thao personal BIDV',
+    amount: 100,
+    date: '2026-02-28',
+  };
+  assert.equal(
+    expenseAccountError({ ...old, reconciled: true }, old),
+    undefined,
+  );
+  assert.ok(expenseAccountError({ ...old, amount: 101 }, old));
+  assert.ok(
+    payingAccountChoices(old).find((x) => x.id === old.account).disabledReason,
+  );
+});
 void test('new receiving-account options never come from historical personal accounts', () => {
   assert.deepEqual(COMPANY_RECEIVING_ACCOUNTS, ['Company BIDV', 'Company VCB']);
   assert.deepEqual(

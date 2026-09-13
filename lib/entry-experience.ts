@@ -1,5 +1,9 @@
 import { fields, type Field } from './entry-fields';
-import { COMPANY_ACCOUNT_HELP } from './receipt-accounts';
+import {
+  COMPANY_ACCOUNT_HELP,
+  PAYING_ACCOUNT_HELP,
+  recipientErrors,
+} from './receipt-accounts';
 export const entryActions: Record<string, string> = {
   student: 'Save student',
   receipt: 'Record payment',
@@ -48,6 +52,7 @@ const groups: Record<string, Record<string, string[]>> = {
   },
   expense: {
     'Payment details': ['description', 'category', 'amount', 'date', 'account'],
+    'Recipient details': ['name', 'recipientBank', 'recipientAccount'],
     'Supporting details': ['reference', 'reconciled'],
   },
   package: {
@@ -99,6 +104,9 @@ const hints: Record<string, string> = {
     'Use a reviewed amount, not an assumed insurance calculation.',
   reconciled: 'Mark only after checking the bank statement or cash evidence.',
   followUp: 'When should your team contact this family again?',
+  recipientBank: 'The recipient’s bank, not the company paying account.',
+  recipientAccount:
+    'Type the account number exactly, including any leading zeros.',
 };
 export function entryFields(kind: string): Field[] {
   return (fields[kind] || []).map((field) => ({
@@ -111,11 +119,13 @@ export function entryFields(kind: string): Field[] {
     help:
       kind === 'receipt' && field.key === 'account'
         ? COMPANY_ACCOUNT_HELP
-        : hints[field.key],
+        : kind === 'expense' && field.key === 'account'
+          ? PAYING_ACCOUNT_HELP
+          : hints[field.key],
     ...(moneyKeys.has(field.key) ? { control: 'money' as const } : {}),
     ...(['account', 'teacher', 'makeupClass', 'assignedTo'].includes(
       field.key,
-    ) && !(kind === 'receipt' && field.key === 'account')
+    ) && !(['receipt', 'expense'].includes(kind) && field.key === 'account')
       ? { control: 'suggestion' as const }
       : {}),
     ...(kind === 'student' && ['pauseFrom', 'resumeDate'].includes(field.key)
@@ -136,6 +146,7 @@ export function entryErrors(
   data: Record<string, unknown>,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
+  if (kind === 'expense') Object.assign(errors, recipientErrors(data));
   for (const f of entryFields(kind)) {
     if (!visibleField(f, data)) continue;
     const value = data[f.key];

@@ -14,6 +14,7 @@ const url = (code) =>
   ).toString('base64');
 const domainURL = url(fs.readFileSync('lib/accounting.ts', 'utf8'));
 const domain = await import(domainURL);
+const accountURL = url(fs.readFileSync('lib/receipt-accounts.ts', 'utf8'));
 const guardURL = url(
   "export class AppError extends Error{constructor(m,s=400){super(m);this.status=s;}};export function requireRole(a,roles){if(!a.active||!roles.includes(a.role))throw new AppError('Access denied',403);}",
 );
@@ -24,6 +25,7 @@ const api = await import(
   url(
     fs
       .readFileSync('lib/accounting-server.ts', 'utf8')
+      .replaceAll("from './receipt-accounts'", `from '${accountURL}'`)
       .replaceAll("from './server'", `from '${guardURL}'`)
       .replaceAll("from './storage'", `from '${storeURL}'`)
       .replaceAll("from './accounting'", `from '${domainURL}'`),
@@ -72,7 +74,10 @@ test('bill payment uses a single atomic RPC and cannot forge approval or bank ve
     payload: {
       date: '2026-09-12',
       amount: 100,
-      account: 'QA bank',
+      account: 'Company BIDV',
+      name: 'Synthetic recipient',
+      recipientBank: 'Example bank',
+      recipientAccount: '00123456789',
       category: 'Rent',
       evidence: 'QA transfer',
       reconciled: true,
@@ -82,6 +87,14 @@ test('bill payment uses a single atomic RPC and cannot forge approval or bank ve
   await api.accountingCommand(finance, input);
   assert.equal(globalThis.__accountingCalls.length, 1);
   assert.equal(globalThis.__accountingCalls[0].op, 'fin_pay');
+  assert.equal(
+    globalThis.__accountingCalls[0].args.payload.recipientAccount,
+    '00123456789',
+  );
+  assert.equal(
+    globalThis.__accountingCalls[0].args.payload.name,
+    'Synthetic recipient',
+  );
   assert.equal(
     globalThis.__accountingCalls[0].args.payload.reconciled,
     undefined,
@@ -96,6 +109,10 @@ test('bill payment uses a single atomic RPC and cannot forge approval or bank ve
     { date: '2026-02-30' },
     { category: 'Payroll' },
     { account: 'x'.repeat(101) },
+    { account: 'Thao personal BIDV' },
+    { account: 'Another person' },
+    { recipientAccount: 123456789 },
+    { name: '' },
   ])
     await assert.rejects(
       api.accountingCommand(finance, {

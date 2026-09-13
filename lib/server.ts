@@ -20,7 +20,11 @@ import {
 import { CUTOFF } from './types';
 import imported from '@boh/private-import';
 import { commandKey } from './command-key';
-import { receiptAccountError } from './receipt-accounts';
+import {
+  receiptAccountError,
+  expenseAccountError,
+  recipientErrors,
+} from './receipt-accounts';
 
 export class AppError extends Error {
   constructor(
@@ -266,6 +270,8 @@ const fields: Record<string, string[]> = {
     'reference',
     'reconciled',
     'payrollId',
+    'recipientBank',
+    'recipientAccount',
   ],
   makeup: [
     'studentId',
@@ -587,7 +593,27 @@ export async function prepareRecord(
           throw new AppError('Select the package belonging to this student.');
       }
       p.allocations = splits;
-    } else p.category = text(p.category, 'expense category', true, 100);
+    } else {
+      p.category = text(p.category, 'expense category', true, 100);
+      const errors = recipientErrors(p);
+      const accountError = expenseAccountError(p, old?.payload);
+      if (accountError) errors.account = accountError;
+      if (Object.keys(errors).length)
+        throw new AppError(Object.values(errors)[0], 400, errors);
+      for (const key of ['recipientBank', 'recipientAccount']) {
+        const value = text(p[key], key, false, 100);
+        if (value || old?.payload[key] !== undefined) p[key] = value;
+        else delete p[key];
+      }
+      if (
+        old &&
+        p.account !== old.payload.account &&
+        !text(input.reason, 'reason')
+      )
+        throw new AppError(
+          'Enter a reason before correcting the paying account.',
+        );
+    }
     if (
       old?.payload.imported &&
       p.amount !== old.payload.amount &&
