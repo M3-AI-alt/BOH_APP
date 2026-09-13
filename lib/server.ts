@@ -20,11 +20,13 @@ import {
 import { CUTOFF } from './types';
 import imported from '@boh/private-import';
 import { commandKey } from './command-key';
+import { receiptAccountError } from './receipt-accounts';
 
 export class AppError extends Error {
   constructor(
     message: string,
     public status = 400,
+    public fieldErrors?: Record<string, string>,
   ) {
     super(message);
   }
@@ -72,7 +74,15 @@ export function failure(e: unknown) {
     e instanceof StorageError ||
     e instanceof AuthError
   )
-    return response({ error: e.message }, e.status);
+    return response(
+      {
+        error: e.message,
+        ...(e instanceof AppError && e.fieldErrors
+          ? { fieldErrors: e.fieldErrors }
+          : {}),
+      },
+      e.status,
+    );
   console.error(
     'BOH request failed',
     e instanceof Error ? e.message : 'unknown',
@@ -536,6 +546,17 @@ export async function prepareRecord(
         );
     }
     if (kind === 'receipt') {
+      const accountError = receiptAccountError(p, old?.payload);
+      if (accountError)
+        throw new AppError(accountError, 400, { account: accountError });
+      if (
+        old &&
+        p.account !== old.payload.account &&
+        !text(input.reason, 'reason')
+      )
+        throw new AppError(
+          'Enter a reason before correcting the receiving account.',
+        );
       if (!['Tuition', 'Deposit', 'Books', 'Other income'].includes(p.purpose))
         throw new AppError('Choose a payment purpose.');
       const splits = Array.isArray(p.allocations) ? p.allocations : [];

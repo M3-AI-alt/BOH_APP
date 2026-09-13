@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 const code = buildSync({
   stdin: {
     contents:
-      "export * from './lib/entry-experience';export * from './lib/record-filters';",
+      "export * from './lib/entry-experience';export * from './lib/record-filters';export * from './lib/receipt-accounts';export * from './lib/workspace-navigation';export * from './lib/drafts';export * from './lib/bulk';export * from './lib/domain';",
     resolveDir: process.cwd(),
   },
   bundle: true,
@@ -31,7 +31,88 @@ const {
   validateFilters,
   moduleAllowed,
   numericTotal,
+  COMPANY_RECEIVING_ACCOUNTS,
+  receiptAccountError,
+  receivingAccountChoices,
+  allowedViews,
+  draftKinds,
+  bulkTasks,
+  canImport,
+  canExport,
+  canWrite,
 } = compiled.exports;
+void test('new receiving-account options never come from historical personal accounts', () => {
+  assert.deepEqual(COMPANY_RECEIVING_ACCOUNTS, ['Company BIDV', 'Company VCB']);
+  assert.deepEqual(
+    receivingAccountChoices().map((x) => x.id),
+    COMPANY_RECEIVING_ACCOUNTS,
+  );
+  const field = entryFields('receipt').find((f) => f.key === 'account');
+  assert.equal(field.type, 'select');
+  assert.notEqual(field.control, 'suggestion');
+  assert.deepEqual(field.options, COMPANY_RECEIVING_ACCOUNTS);
+  const cash = {
+    account: 'Thao personal BIDV',
+    amount: 100,
+    date: '2026-09-01',
+  };
+  for (const account of [
+    'Thao personal BIDV',
+    'Thao personal MBB',
+    'Thao personal VCB',
+    'Thảo',
+    'Company',
+    'Cash',
+    'New bank',
+    '',
+  ])
+    assert.ok(receiptAccountError({ ...cash, account }), account);
+  for (const account of COMPANY_RECEIVING_ACCOUNTS)
+    assert.equal(receiptAccountError({ ...cash, account }), undefined);
+  assert.equal(
+    receiptAccountError({ ...cash, reconciled: true }, cash),
+    undefined,
+  );
+  assert.ok(receiptAccountError({ ...cash, amount: 101 }, cash));
+  assert.ok(receiptAccountError({ ...cash, date: '2026-09-13' }, cash));
+  const legacy = receivingAccountChoices(cash).find(
+    (x) => x.id === cash.account,
+  );
+  assert.ok(legacy.disabledReason);
+});
+void test('Director includes every Finance navigation, entry, worksheet, draft and filter capability', () => {
+  const actor = (role) => ({
+    role,
+    userId: role,
+    name: role,
+    email: role + '@example.invalid',
+    active: true,
+    classIds: [],
+  });
+  for (const view of allowedViews('Finance'))
+    assert.ok(allowedViews('Director').includes(view), view);
+  for (const kind of draftKinds('Finance'))
+    assert.ok(draftKinds('Director').includes(kind), kind);
+  for (const kind of [...Object.keys(bulkTasks), 'close']) {
+    if (canWrite(actor('Finance'), kind, 'test'))
+      assert.ok(canWrite(actor('Director'), kind, 'test'), kind);
+    if (canImport(actor('Finance'), kind))
+      assert.ok(canImport(actor('Director'), kind), kind);
+    if (canExport(actor('Finance'), kind))
+      assert.ok(canExport(actor('Director'), kind), kind);
+  }
+  for (const module of [
+    'receipts',
+    'expenses',
+    'attendance',
+    'students',
+    'payroll',
+    'tasks',
+  ]) {
+    assert.ok(moduleAllowed(module, 'Finance'));
+    assert.ok(moduleAllowed(module, 'Director'));
+  }
+});
 test('VND input accepts whole amounts in both languages and never coerces malformed text', () => {
   for (const text of ['10000', '10,000', '10.000', '10 000'])
     assert.equal(parseVnd(text), 10000);

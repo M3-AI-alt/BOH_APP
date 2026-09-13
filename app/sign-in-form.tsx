@@ -86,7 +86,7 @@ export default function SignInForm() {
         <summary>{t('Forgot your password?')}</summary>
         <p>
           {t(
-            'Ask Karam Ben to arrange a new temporary password for your individual account. Never use another staff member’s login.',
+            'Ask Karam Mouelhi, Director, to arrange a new temporary password for your individual account. Never use another staff member’s login.',
           )}
         </p>
       </details>

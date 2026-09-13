@@ -14,11 +14,17 @@ const url = (code) =>
   ).toString('base64');
 const types = url(fs.readFileSync('lib/types.ts', 'utf8'));
 const keyModule = url(fs.readFileSync('lib/command-key.ts', 'utf8'));
-const fieldUrl = url(fs.readFileSync('lib/entry-fields.ts', 'utf8'));
+const accountUrl = url(fs.readFileSync('lib/receipt-accounts.ts', 'utf8'));
+const fieldUrl = url(
+  fs
+    .readFileSync('lib/entry-fields.ts', 'utf8')
+    .replace("from './receipt-accounts'", `from '${accountUrl}'`),
+);
 const experienceUrl = url(
   fs
     .readFileSync('lib/entry-experience.ts', 'utf8')
-    .replace("from './entry-fields'", `from '${fieldUrl}'`),
+    .replace("from './entry-fields'", `from '${fieldUrl}'`)
+    .replace("from './receipt-accounts'", `from '${accountUrl}'`),
 );
 const domain = url(
   fs
@@ -54,6 +60,7 @@ const serverUrl = url(
     .replaceAll("from './storage'", `from '${storage}'`)
     .replaceAll("from './types'", `from '${types}'`)
     .replaceAll("from './command-key'", `from '${keyModule}'`)
+    .replaceAll("from './receipt-accounts'", `from '${accountUrl}'`)
     .replaceAll("from './domain'", `from '${domain}'`)
     .replace(
       "import imported from '@boh/private-import';",

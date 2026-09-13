@@ -14,6 +14,9 @@ const moduleUrl = (code) =>
   ).toString('base64');
 const types = moduleUrl(fs.readFileSync('lib/types.ts', 'utf8'));
 const keyModule = moduleUrl(fs.readFileSync('lib/command-key.ts', 'utf8'));
+const accountModule = moduleUrl(
+  fs.readFileSync('lib/receipt-accounts.ts', 'utf8'),
+);
 const { commandKey } = await import(keyModule);
 const domain = moduleUrl(
   fs
@@ -27,6 +30,7 @@ const code = fs
   .readFileSync('lib/server.ts', 'utf8')
   .replaceAll("from './types'", `from '${types}'`)
   .replaceAll("from './command-key'", `from '${keyModule}'`)
+  .replaceAll("from './receipt-accounts'", `from '${accountModule}'`)
   .replaceAll("from './domain'", `from '${domain}'`)
   .replaceAll("from './storage'", `from '${storage}'`)
   .replace("import { env } from 'cloudflare:workers';", 'const env={};')
@@ -75,6 +79,95 @@ const setup = () =>
     ],
     calls: [],
   });
+void test('Director and Finance can record company receipts but cannot use personal receiving accounts', async () => {
+  for (const role of ['Director', 'Finance']) {
+    const state = setup();
+    const cash = {
+      date: '2026-09-12',
+      name: 'Synthetic payer',
+      amount: 100,
+      account: 'Company BIDV',
+      purpose: 'Tuition',
+    };
+    for (const account of [
+      'Thao personal BIDV',
+      'Thao personal MBB',
+      'Thao personal VCB',
+      'Thảo',
+      'Company',
+      'Cash',
+    ]) {
+      await assert.rejects(
+        server.prepareRecord(
+          { ...actor, role },
+          { kind: 'receipt', payload: { ...cash, account } },
+        ),
+        (e) => e.status === 400 && !!e.fieldErrors.account,
+      );
+    }
+    for (const account of ['Company BIDV', 'Company VCB']) {
+      const result = await server.prepareRecord(
+        { ...actor, role },
+        { kind: 'receipt', payload: { ...cash, account } },
+      );
+      assert.equal(result.record.payload.account, account);
+    }
+    assert.equal(
+      state.calls.some((c) => c.op === 'commit_record'),
+      false,
+    );
+  }
+});
+void test('legacy receiving accounts remain unchanged for reconciliation but cannot record more money', async () => {
+  const state = setup();
+  const payload = {
+    date: '2026-09-12',
+    month: '2026-09',
+    name: 'Synthetic payer',
+    amount: 100,
+    account: 'Thao personal VCB',
+    purpose: 'Tuition',
+  };
+  state.records.push({
+    id: 'legacy-receipt',
+    kind: 'receipt',
+    date: payload.date,
+    revision: 1,
+    payload,
+  });
+  const input = {
+    kind: 'receipt',
+    id: 'legacy-receipt',
+    revision: 1,
+    payload: { reconciled: true },
+  };
+  const result = await server.prepareRecord(actor, input);
+  assert.equal(result.record.payload.account, payload.account);
+  assert.equal(result.record.payload.amount, 100);
+  assert.equal(result.record.payload.reconciled, true);
+  for (const change of [
+    { amount: 101 },
+    { date: '2026-09-13' },
+    { account: 'Thao personal BIDV' },
+  ])
+    await assert.rejects(
+      server.prepareRecord(actor, { ...input, payload: change }),
+      /historical|Personal accounts/,
+    );
+  await assert.rejects(
+    server.prepareRecord(actor, {
+      ...input,
+      payload: { account: 'Company BIDV' },
+    }),
+    /reason/,
+  );
+  const corrected = await server.prepareRecord(actor, {
+    ...input,
+    payload: { account: 'Company BIDV' },
+    reason: 'Confirmed statement correction',
+  });
+  assert.equal(corrected.record.payload.account, 'Company BIDV');
+});
 test('cached entry survives saved-draft recovery with the same business hash', async () => {
   const state = setup();
   state.respond = async () => ({ id: 'original-cash', kind: 'expense' });

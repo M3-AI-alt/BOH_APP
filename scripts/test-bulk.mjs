@@ -125,13 +125,31 @@ const receipt = (key = 'cash-1') => ({
   studentId: 'Student A',
   packageId: '48 sessions',
   amount: '1000000',
-  account: 'Cash',
+  account: 'Company BIDV',
 });
 test('bulk preview validates real record rules and makes no writes', async () => {
   setup();
   const p = await b.bulkPreview(actor, 'receipt', csv('receipt', [receipt()]));
   assert.equal(p.rows[0].status, 'Ready');
   assert.equal(p.rows[0].payload.packageId, 'p1');
+  assert.equal(globalThis.__bulk.saved, 0);
+});
+void test('receipt worksheets reject personal and arbitrary receiving accounts before commit', async () => {
+  setup();
+  for (const account of [
+    'Thao personal BIDV',
+    'Thảo',
+    'Cash',
+    'Company',
+    'Other bank',
+  ]) {
+    const p = await b.bulkPreview(
+      actor,
+      'receipt',
+      csv('receipt', [{ ...receipt(), account }]),
+    );
+    assert.notEqual(p.rows[0].status, 'Ready', account);
+  }
   assert.equal(globalThis.__bulk.saved, 0);
 });
 test('student worksheets enforce the same return-date rule as manual profiles', async () => {

@@ -27,6 +27,12 @@ import {
 import { type Field } from '@/lib/entry-fields';
 import { draftKinds } from '@/lib/drafts';
 import { commandKey } from '@/lib/command-key';
+import {
+  receiptAccountError,
+  receivingAccountChoices,
+  isCompanyReceivingAccount,
+  LEGACY_ACCOUNT_HELP,
+} from '@/lib/receipt-accounts';
 import type { Role } from '@/lib/types';
 import {
   entryFields,
@@ -387,6 +393,10 @@ export default function RecordForm({
     e.preventDefault();
     if (submitting.current) return;
     const validation = entryErrors(kind, data);
+    if (kind === 'receipt') {
+      const accountError = receiptAccountError(data, record?.payload);
+      if (accountError) validation.account = accountError;
+    }
     const relevant =
       guided && step < 3
         ? Object.fromEntries(
@@ -479,6 +489,22 @@ export default function RecordForm({
       describedBy: 'help-' + f.key,
       required: f.required,
     };
+    if (kind === 'receipt' && f.key === 'account')
+      return (
+        <>
+          <Picker
+            {...guidance}
+            id="field-account"
+            label={t('Choose a company receiving account')}
+            value={v}
+            onChange={(value) => set('account', value)}
+            options={receivingAccountChoices(record?.payload)}
+          />
+          {record?.payload?.account === v && !isCompanyReceivingAccount(v) && (
+            <p className="field-help">{t(LEGACY_ACCOUNT_HELP)}</p>
+          )}
+        </>
+      );
     if (f.control === 'money')
       return (
         <MoneyInput
@@ -1142,19 +1168,24 @@ export default function RecordForm({
                   <p>{t('All classes · teaching only')}</p>
                 </div>
               )}
-              {record?.payload?.imported &&
-                ['receipt', 'expense'].includes(kind) && (
-                  <div className="wide form-field">
-                    <label htmlFor="correction-reason">
-                      {t('Reason if correcting the original amount')}
-                    </label>
-                    <input
-                      id="correction-reason"
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                    />
-                  </div>
-                )}
+              {((record?.payload?.imported &&
+                ['receipt', 'expense'].includes(kind)) ||
+                (kind === 'receipt' &&
+                  record?.id &&
+                  data.account !== record.payload?.account)) && (
+                <div className="wide form-field">
+                  <label htmlFor="correction-reason">
+                    {t(
+                      'Reason for correcting the original amount or receiving account',
+                    )}
+                  </label>
+                  <input
+                    id="correction-reason"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                </div>
+              )}
             </fieldset>
             {error && (
               <div className="error-message" role="alert">

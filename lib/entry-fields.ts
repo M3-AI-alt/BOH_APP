@@ -1,3 +1,4 @@
+import { COMPANY_RECEIVING_ACCOUNTS } from './receipt-accounts';
 export type Field = {
   key: string;
   label: string;
@@ -64,7 +65,13 @@ export const fields: Record<string, Field[]> = {
       type: 'number',
       required: true,
     },
-    { key: 'account', label: 'Receiving account', required: true },
+    {
+      key: 'account',
+      label: 'Receiving account',
+      type: 'select',
+      options: COMPANY_RECEIVING_ACCOUNTS,
+      required: true,
+    },
     { key: 'reference', label: 'Bank reference / Ghi chú' },
     { key: 'description', label: 'Description' },
     {

@@ -1,4 +1,12 @@
 {
+  "Company accounts only. Managed by Karam Mouelhi, Founder and Director.": "Chỉ dùng tài khoản công ty. Karam Mouelhi, Nhà sáng lập kiêm Giám đốc, phụ trách các tài khoản này.",
+  "Choose a company receiving account": "Chọn tài khoản công ty nhận tiền",
+  "Choose Company BIDV or Company VCB. Personal accounts cannot receive new payments.": "Chọn Company BIDV hoặc Company VCB. Không dùng tài khoản cá nhân để ghi nhận khoản thu mới.",
+  "Historical account — kept for the original record only. New payments must use a company account.": "Tài khoản lịch sử — chỉ giữ cho chứng từ gốc. Khoản thu mới phải dùng tài khoản công ty.",
+  "This historical receiving account is read-only. Keep its original amount and date; record new money in a company account.": "Tài khoản nhận tiền lịch sử chỉ để đối chiếu. Giữ nguyên số tiền và ngày thu; ghi khoản thu mới vào tài khoản công ty.",
+  "Enter a reason before correcting the receiving account.": "Nhập lý do trước khi sửa tài khoản nhận tiền.",
+  "Reason for correcting the original amount or receiving account": "Lý do sửa số tiền gốc hoặc tài khoản nhận tiền",
+  "Ask Karam Mouelhi, Director, to arrange a new temporary password for your individual account. Never use another staff member’s login.": "Hãy nhờ Giám đốc Karam Mouelhi cấp mật khẩu tạm thời mới cho tài khoản riêng của bạn. Không sử dụng tài khoản của nhân viên khác.",
   "Payer": "Người nộp tiền",
   "Classes": "Lớp học",
   "Choose today or an earlier payment date.": "Chọn ngày hôm nay hoặc ngày thanh toán trước đó.",

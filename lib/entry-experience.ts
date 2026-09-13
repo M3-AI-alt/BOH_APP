@@ -1,4 +1,5 @@
 import { fields, type Field } from './entry-fields';
+import { COMPANY_ACCOUNT_HELP } from './receipt-accounts';
 export const entryActions: Record<string, string> = {
   student: 'Save student',
   receipt: 'Record payment',
@@ -107,9 +108,14 @@ export function entryFields(kind: string): Field[] {
         keys.includes(field.key),
       )?.[0] || 'Essential information',
     advanced: !field.required && advancedKeys.has(field.key),
-    help: hints[field.key],
+    help:
+      kind === 'receipt' && field.key === 'account'
+        ? COMPANY_ACCOUNT_HELP
+        : hints[field.key],
     ...(moneyKeys.has(field.key) ? { control: 'money' as const } : {}),
-    ...(['account', 'teacher', 'makeupClass', 'assignedTo'].includes(field.key)
+    ...(['account', 'teacher', 'makeupClass', 'assignedTo'].includes(
+      field.key,
+    ) && !(kind === 'receipt' && field.key === 'account')
       ? { control: 'suggestion' as const }
       : {}),
     ...(kind === 'student' && ['pauseFrom', 'resumeDate'].includes(field.key)
