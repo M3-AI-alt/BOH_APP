@@ -1,6 +1,6 @@
 # Complete workspace — implementation status
 
-Updated 13 September 2026. **The full approved plan is not complete.** This is a tested local increment, not a production deployment or an approved accounting cutover.
+Updated 13 September 2026. **The full approved plan is not complete.** This tested increment is deployed to the existing Hostinger app; it is not an approved accounting cutover. See [release evidence](RELEASE-2026-09-13.md).
 
 The subsequent UX-first pilot is detailed in [UX-FIRST-IMPLEMENTATION.md](./UX-FIRST-IMPLEMENTATION.md), including guided payments, background drafts, contextual filters, saved views and remaining staff-acceptance gates.
 
@@ -38,7 +38,7 @@ New database migration: `20260912174225_workspace_entry_safety.sql`. It adds pri
 - Local Supabase security advisors found no warnings/errors. Database lint exposed the existing history error, now fixed; it still reports an existing unused `batch_id` variable in the old finance function.
 - A local PostgreSQL image crashed during an anonymous-role execution experiment. That test is not counted as passing. ACL catalogue checks and actual route authentication tests cover the new access boundaries instead.
 
-Fresh private public/boh_private schema and data backups were restored into a separate QA database. **This increment has not demonstrated full recovery of Auth accounts or stored document files.** No production migration, GitHub push, Hostinger deployment or official-service activation was performed.
+Fresh private public/boh_private and Auth schema/data backups were restored into a separate QA database on 13 September: all 6 Auth accounts, 6 staff accounts and 10,579 source/application records were recovered. Both new migrations and SQL test suites passed on that restored copy before applying the migrations to production. GitHub and Hostinger now contain this increment. **Stored document-file restoration and signed-in live staff acceptance remain unverified.** No official-service activation or accounting cutover occurred.
 
 ## Still required from the approved plan
 
@@ -54,7 +54,7 @@ Fresh private public/boh_private schema and data backups were restored into a se
 | Accounting close                | Reconciled opening balances and mappings; complete posted journals/reversals; subledger-to-ledger reconciliation; controlled period close/reopening and accepted reports                      |
 | Communications                  | Reviewed bilingual communication templates and honest manual-send recording                                                                                                                   |
 | Migration and official services | Source coverage/reconciliation, supported MISA exports/API entitlement, asynchronous status evidence, invoice XML/signatures and tax acknowledgements                                         |
-| Rollout                         | Full records-and-files restoration drill; supervised role acceptance; accountant/director monthly close; approved production deployment and cutover                                           |
+| Rollout                         | Supporting-file restoration drill; signed-in live role checks and supervised staff acceptance; accountant/director monthly close; approved accounting cutover                                  |
 
 Existing worksheet templates remain available for supported operational record kinds. New modules above must receive their own manual forms, validated templates, preview/commit imports, exports and history when implemented; no unsupported module is labelled complete merely because it has a navigation destination.
 

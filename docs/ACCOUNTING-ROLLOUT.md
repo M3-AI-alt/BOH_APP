@@ -2,7 +2,7 @@
 
 This is the first tested foundation release, **not completion of the full migration or official accounting activation**.
 
-The following describes the 12 September baseline. The next **local, not deployed** increment adds full filtered exports, linked bill-payment recording, private entry drafts and a repaired history query. See [current implementation status](WORKSPACE-IMPLEMENTATION.md) for its tests, rollout boundary and remaining plan.
+The following describes the 12 September baseline. The increment **deployed on 13 September** adds full filtered exports, linked bill-payment recording, private entry drafts and a repaired history query. See [current implementation status](WORKSPACE-IMPLEMENTATION.md) and [release evidence](RELEASE-2026-09-13.md) for tests, rollout boundaries and the remaining plan.
 
 ## Delivered
 

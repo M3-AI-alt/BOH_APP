@@ -1,6 +1,6 @@
 # UX-first pilot — implementation and acceptance
 
-Updated 13 September 2026. **Implemented locally, not deployed.** This is the representative-workflow release in step 1 of the approved UX plan, plus the shared controls it needs. The full plan is not accepted or complete.
+Updated 13 September 2026. **Deployed to the existing Hostinger app.** This is the representative-workflow release in step 1 of the approved UX plan, plus the shared controls it needs. The full plan is not accepted or complete. See [release evidence](RELEASE-2026-09-13.md).
 
 ## What changed
 
@@ -44,12 +44,12 @@ Database tests are `supabase/tests/ux_saved_views.sql` and `supabase/tests/works
 
 ## Deployment and remaining gates
 
-No GitHub push, production Supabase migration, Hostinger deployment, MISA posting or accounting cutover was performed. The new client requires these additive migrations, in order, before production use:
+Source commit `819a817c5f238d9455942729ba0fc8dbaa43fc0c` was pushed to GitHub and deployed to Hostinger on 13 September 2026. These additive migrations were applied to production before deploying the new client:
 
 1. `20260912174225_workspace_entry_safety.sql` — private drafts and guarded entry/payment commands.
 2. `20260912185432_ux_saved_views.sql` — saved views and permission-checked RPC.
 
-Back up, verify restoration, apply through the normal migration process, then smoke-test Director/manager, Finance and TA accounts. Do not drop populated draft/view/command tables to roll back.
+The fresh application and Auth backup restored successfully to isolated QA; both migrations and SQL suites passed there before production application. Business-record counts and fingerprint were unchanged afterward. Live signed-out route, database access-control and bilingual login checks passed; signed-in live staff smoke tests remain outstanding. No MISA posting or accounting cutover occurred. Do not drop populated draft/view/command tables to roll back.
 
 Before expanding the pattern, test the pilot with the accountant, manager and TA: payment entry under one minute, enrollment under three minutes where the complete enrollment workflow is available, at least 90% unassisted task completion, and no critical identity/financial mistakes. Those tests have **not** been performed.
 
