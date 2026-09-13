@@ -66,3 +66,24 @@ change neither moves bank money nor creates another expense for the recipient.
 Real signed-in staff acceptance, browser/mobile visual checks and stored-document
 file restoration are not claimed by these automated tests. This is a focused
 expense-entry correction, not completion of the entire accounting roadmap.
+
+## Published release
+
+- Live at https://benoxfordhub.online/ from application commit
+  `52105384fc515c897dde0b541602fee86dc9844e`, pushed to GitHub `main`.
+- Hostinger build `01a099e8-ba15-7241-a6b2-e9550e4fe3a8` completed at
+  08:37:15 UTC / 15:37:15 Vietnam time, 13 September 2026. Existing hosting,
+  domain, runtime secrets and Supabase project are unchanged.
+- Only additive migration `20260913082338_expense_recipients_company_accounts`
+  was applied; all 13 migration versions match the linked production database.
+  No seeds, staff changes, financial commands or data-import batches were run.
+- Production guard grants deny `anon` and `authenticated`; server access remains.
+  Post-migration database lint has no errors; security advisors retain only the
+  pre-existing leaked-password warning. Business counts, August collections and
+  the fingerprint above are identical before and after the change.
+- Live homepage returns 200. Signed-out state, accounting, expense saved views
+  and auth-status endpoints return 401 with `private, no-store`. The live expense
+  worksheet returns 200 and its SHA-256 matches the validated workbook exactly.
+- This release-note follow-up is documentation-only; the deployed application
+  commit above is unchanged. The unrelated local `UI-DESIGN-SKILL.md` and private
+  backups remain excluded from Git and the deployment archive.
