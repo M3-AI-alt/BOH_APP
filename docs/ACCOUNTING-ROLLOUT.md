@@ -13,8 +13,8 @@ it does not delete existing records or change their historical provenance.
 
 Reconciled opening balances, approved internal account/report mappings,
 permissions, approvals and a supervised monthly close remain required. The scope
-change is recorded here without claiming that a new application release has
-already been deployed.
+change is deployed on the existing Hostinger/Supabase application. See the
+[14 September release evidence](INTERNAL-ACCOUNTING-2026-09-14.md).
 
 The following describes the 12 September baseline. The increment **deployed on 13 September** adds full filtered exports, linked bill-payment recording, private entry drafts and a repaired history query. See [current implementation status](WORKSPACE-IMPLEMENTATION.md) and [release evidence](RELEASE-2026-09-13.md) for tests, rollout boundaries and the remaining plan.
 

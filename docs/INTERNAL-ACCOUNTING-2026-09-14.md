@@ -40,7 +40,24 @@ are outside its scope; external-service setup is not a BOH activation requiremen
 
 ## Release status
 
-Database changes are applied. Website publication and live checks are pending.
+Database changes are applied. Source `6a56851694920594e23e272778e85f35fef09977`
+is pushed to GitHub `main` and deployed to `https://benoxfordhub.online/`.
+Hostinger build `01a09e48-a1b6-71ac-b599-679c8bb32fb2` completed at
+2026-09-14 05:00:51 UTC.
+
+Read-only live checks passed at 2026-09-14 05:01:41 UTC:
+
+- English/Vietnamese login returned 200 with the correct language and headings;
+  all 16 login assets and the workspace bundle returned 200.
+- New entry `index-CCsQu5JX.js` and workspace `workspace-DE4NLNea.js` are live.
+  The workspace contains `Internal accounting` and no former MISA connection banner.
+- Anonymous `/api/accounting` and `/api/state` with an explicitly synthetic unknown
+  64-hex session both returned 401 JSON with private/no-store cache controls.
+- The live 9,053-byte task template matches the internal-only category choices.
+  Its existing text/plain MIME response is unchanged; the file parses as valid XLSX.
+
+No real credentials or business writes were used for smoke tests. These HTTP checks
+and both-language render tests are not signed-in staff workflow acceptance.
 
 This is a scope correction, not completion of every planned finance module or
 approval of internal accounting cutover. Reconciled balances, approved mappings,

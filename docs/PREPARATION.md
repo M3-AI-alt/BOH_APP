@@ -11,8 +11,8 @@ The already-delivered workbook and dated release checks below are historical
 artifacts. Any legacy external-service questions in that copy are no longer
 required; do not alter its protected source cells or stable references. Preserve
 source provenance and use the supported review workflow rather than blindly
-re-importing it. This policy note does not claim that a replacement workbook or
-application release has already been delivered.
+re-importing it. No replacement private workbook was issued. The application
+scope change is deployed; see [release evidence](INTERNAL-ACCOUNTING-2026-09-14.md).
 
 ## Delivered scope
 

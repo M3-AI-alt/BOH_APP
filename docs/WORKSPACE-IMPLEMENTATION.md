@@ -7,9 +7,9 @@ management, accounting and finance workspace. The earlier MISA migration/API
 connection and official-service activation plans are withdrawn. E-invoice
 issuance/signing and tax filing are not application features or completion
 requirements. Preserve historical records and source references; do not erase
-evidence to implement this boundary. The release evidence below remains dated
-to its original verification and is not a claim that this policy change has
-already been deployed.
+evidence to implement this boundary. This scope change is deployed; see the
+[14 September release evidence](INTERNAL-ACCOUNTING-2026-09-14.md). The baseline
+release evidence below remains dated to its original verification.
 
 The subsequent UX-first pilot is detailed in [UX-FIRST-IMPLEMENTATION.md](./UX-FIRST-IMPLEMENTATION.md), including guided payments, background drafts, contextual filters, saved views and remaining staff-acceptance gates.
 
