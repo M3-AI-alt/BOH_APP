@@ -135,6 +135,17 @@ retry and immutability tests passed against that restored database. This verifie
 database restoration, not supporting-document file restoration or a monthly close.
 Application tests (131), typechecking and the Hostinger build passed again.
 
+Deployment checkpoint (2026-09-14): application commit `fcf8b06` is pushed to
+GitHub `main`. The preparation migration is applied to the existing Supabase
+project; all 14 local/remote migration versions match. Post-migration checks
+confirm unchanged business-record fingerprint, record/staff/auth counts and
+August collections, zero preparation reviews, enabled RLS, denied public/client
+access and immutable service-role evidence. Database lint reports no errors;
+the existing leaked-password-protection advisory remains unchanged.
+Hostinger publication is pending browser reauthorization of its expired CLI
+login; the live site still serves the prior build. No workbook or source-data
+backup was included in GitHub or a public asset bundle.
+
 Still required before full finance use: connected daily workflows, detailed
 payroll/stock/assets/budgets/funding, reviewed commit adapters, private documents,
 reconciled opening balances and source coverage, backup restoration including
