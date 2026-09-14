@@ -407,7 +407,6 @@ export const fields: Record<string, Field[]> = {
         'Payroll',
         'Bank',
         'Student invoices',
-        'Tax filing',
         'Contracts',
         'Admin',
         'Work log',

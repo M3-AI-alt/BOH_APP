@@ -1,4 +1,10 @@
 /** Accounting review is deliberately separate from the cash and attendance stores. */
+/** New source evidence is entered manually; historical source labels stay unchanged. */
+export const accountingImportSources = [
+  'Bank',
+  'Spreadsheet',
+  'Top ID',
+] as const;
 export const documentKinds = ['bill', 'payroll', 'refund', 'journal'] as const;
 export type DocumentKind = (typeof documentKinds)[number];
 export type ReviewState =

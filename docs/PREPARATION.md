@@ -1,10 +1,24 @@
 # Accountant preparation — first release
 
+## Current scope — 14 September 2026
+
+BOH is for independent internal accounting, finance and centre management. The
+Director has withdrawn the MISA connection/migration/API plan. E-invoice
+issuance/signing and tax filing are outside BOH, not unfinished activation steps.
+No MISA access or entitlement is required for accountant preparation.
+
+The already-delivered workbook and dated release checks below are historical
+artifacts. Any legacy external-service questions in that copy are no longer
+required; do not alter its protected source cells or stable references. Preserve
+source provenance and use the supported review workflow rather than blindly
+re-importing it. This policy note does not claim that a replacement workbook or
+application release has already been delivered.
+
 ## Delivered scope
 
 This release supplies one Vietnamese workbook and a separate preparation-review
-workflow. It does **not** complete the larger centre-finance programme, activate
-official accounting, or turn spreadsheet proposals into live transactions.
+workflow. It does **not** complete the larger centre-finance programme, approve
+an internal accounting cutover, or turn spreadsheet proposals into live transactions.
 
 The workbook was built from a read-only BOH snapshot captured at
 2026-09-13 10:23:42 UTC (17:23:42 Vietnam time). Two consecutive paginated reads
@@ -26,8 +40,9 @@ matched. Source files remain outside the repository and are not public assets.
 August receipts total **VND 200,295,000**, matching the requested benchmark. The
 January–May source expense totals are respectively VND 141,209,800; 118,223,132;
 98,350,776; 147,927,800; and 79,318,850. Matching these source totals is not bank
-reconciliation or approval. MISA coverage, opening balances, invoice evidence,
-tax acknowledgements and missing supporting files remain unverified.
+reconciliation or approval. Opening balances, source coverage and missing
+supporting files remain unverified. External invoice issuance and tax
+acknowledgements are not BOH preparation or activation requirements.
 
 ## Accountant instructions
 
@@ -162,5 +177,6 @@ full-finance workflows listed below.
 Still required before full finance use: connected daily workflows, detailed
 payroll/stock/assets/budgets/funding, reviewed commit adapters, private documents,
 reconciled opening balances and source coverage, backup restoration including
-files, supervised monthly close and representative staff acceptance. No statutory
-invoice/tax activation or bank execution is implied.
+files, supervised monthly close and representative staff acceptance. E-invoice
+issuance/signing, tax filing and external accounting-service activation are
+outside scope; BOH does not execute bank payments.

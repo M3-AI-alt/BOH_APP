@@ -1,5 +1,11 @@
 # Self-service worksheets
 
+Scope updated 14 September 2026: BOH worksheets support independent internal
+accounting and centre operations. The former MISA connection/migration and
+official-service activation plan is withdrawn. Existing source evidence and
+record history are preserved; no service connection is required to use the
+worksheets.
+
 For the deployed workspace upgrade and explicit outstanding modules, see [implementation status](WORKSPACE-IMPLEMENTATION.md). Existing templates described here remain supported; new planned modules are not yet available as worksheet tasks.
 
 Open **Import & export** in BOH. Select a task to open its manual entry form, download an Excel/CSV template, preview an upload, or export saved records.
@@ -24,4 +30,9 @@ Exports are CSV files with IDs, revisions and saved payload details. All-date ex
 
 ## Release boundary
 
-This release supplies operational entry and worksheet tools. It does not activate official MISA posting, e-invoice signing, tax filing, statutory reports or an accounting cutover. Reconciled opening balances and accountant acceptance are still required before replacing those official processes.
+This release supplies operational entry and worksheet tools. Legal e-invoice
+issuance/signing, tax filing and statutory-service integration are outside BOH's
+scope, not unfinished worksheet tasks. Reconciled opening balances, approved
+internal mappings, remaining workflows and accountant acceptance are still
+required for a full internal-accounting cutover. A completed workbook does not
+itself authorize posting or make the remaining software complete.

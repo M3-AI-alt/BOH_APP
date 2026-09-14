@@ -97,6 +97,25 @@ test('prefill preserves existing identities, amounts and bank evidence', () => {
   assert.equal(b.controlTotals.augustCollections, 100);
   assert.equal(b.tables.students.rows[0].original.name, 'NGUYỄN AN');
 });
+test('new preparation setup is internal-only and old signed labels stay readable', async () => {
+  const b = baseline();
+  const labels = b.tables.company.rows
+    .map((r) => r.original.name || '')
+    .join('\n');
+  assert.doesNotMatch(labels, /MISA|API|XML|ký số|khai thuế/iu);
+  // Historical signed workbooks remain evidence; never rewrite their protected cells.
+  b.tables.company.rows[0].original.name = 'Nguồn dữ liệu MISA / kỳ còn thiếu';
+  const parsed = await p.parsePreparationFile(await encode(workbook(b)), key);
+  assert.equal(
+    parsed.baseline.tables.company.rows[0].original.name,
+    b.tables.company.rows[0].original.name,
+  );
+  assert.equal(
+    p.reviewPreparation(parsed.baseline, parsed.submissions, records)
+      .financialChanges,
+    0,
+  );
+});
 test('blank cells never delete, zero or create records', () => {
   const b = baseline(),
     before = JSON.stringify(records),

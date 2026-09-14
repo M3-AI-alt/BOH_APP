@@ -3,6 +3,7 @@ import { expenseAccountError, recipientErrors } from './receipt-accounts';
 import { AppError, requireRole } from './server';
 import { storeCall } from './storage';
 import {
+  accountingImportSources,
   documentKinds,
   parseSourceCsv,
   sourceAmount,
@@ -27,7 +28,7 @@ export async function listAccounting(a: Actor, q: URLSearchParams) {
     throw new AppError('Invalid page.');
   const id = q.get('id');
   if (id && !uuid(id)) throw new AppError('Choose a document.');
-  return storeCall(
+  const result = await storeCall(
     q.get('export') === '1'
       ? 'fin_export'
       : q.get('queue') === '1'
@@ -44,8 +45,18 @@ export async function listAccounting(a: Actor, q: URLSearchParams) {
       month,
     },
   );
+  // Older database deployments may still return a provider connection prompt.
+  // BOH exposes internal accounting only; keep historical source rows intact.
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const internalAccounting = { ...result };
+    delete internalAccounting.misa;
+    return internalAccounting;
+  }
+  return result;
 }
 export function previewSource(input: any) {
+  if (!input || !accountingImportSources.includes(input.source))
+    throw new AppError('Choose Bank, Spreadsheet or Top ID as the source.');
   let parsed;
   try {
     parsed = parseSourceCsv(bounded(input.csv, 1_000_000, true));
@@ -61,8 +72,6 @@ export function previewSource(input: any) {
     !['iso', 'dmy'].includes(input.dateFormat)
   )
     throw new AppError('Choose date and number formats.');
-  if (!['MISA', 'Bank', 'Spreadsheet', 'Top ID'].includes(input.source))
-    throw new AppError('Choose the source.');
   const dataset = bounded(input.dataset, 200, true),
     view = bounded(input.view, 160, true),
     fileName = bounded(input.fileName, 250, true);

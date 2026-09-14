@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Download,
-  FileCheck2,
   FileInput,
   Plus,
   RefreshCw,
@@ -18,7 +17,12 @@ import {
 } from '@/components/ui/dialog';
 import { Badge, Choice, DataTable, Panel, Picker } from './ui';
 import { useLanguage } from './language';
-import { csvCell, documentKinds, parseSourceCsv } from '@/lib/accounting';
+import {
+  accountingImportSources,
+  csvCell,
+  documentKinds,
+  parseSourceCsv,
+} from '@/lib/accounting';
 import { entries, today } from '@/lib/domain';
 import type { ViewProps } from './views';
 import { MoneyInput, FinancialReview } from './entry-controls';
@@ -129,7 +133,7 @@ export function Accounting(p: ViewProps) {
     const initial =
       type === 'import'
         ? {
-            source: 'MISA',
+            source: 'Spreadsheet',
             period: p.month,
             dataset: '',
             view: '',
@@ -452,10 +456,10 @@ export function Accounting(p: ViewProps) {
         <div>
           <ShieldCheck size={22} />
           <div>
-            <strong>{t('Accounting review')}</strong>
+            <strong>{t('Internal accounting')}</strong>
             <p>
               {t(
-                'Prepare, match and approve. Imported accounting records never become cash receipts automatically.',
+                'Prepare, match and approve internal records. Imports never create cash receipts automatically.',
               )}
             </p>
           </div>
@@ -481,14 +485,6 @@ export function Accounting(p: ViewProps) {
         <Panel title={t('Approved documents')} subtitle={t('All periods')}>
           <strong>{data?.summary?.approved ?? '—'}</strong>
         </Panel>
-      </div>
-      <div className="accounting-notice">
-        <FileCheck2 size={20} />
-        <span>
-          {t(
-            'MISA is not connected for posting. API registration, accounting mappings, opening balances and cutover approval are still required.',
-          )}
-        </span>
       </div>
       <div
         className="button-row"
@@ -816,7 +812,7 @@ export function Accounting(p: ViewProps) {
                       <summary>{t('Advanced: journal preparation')}</summary>
                       <p>
                         {t(
-                          'These lines are a draft only. Official posting remains locked until reconciliation is approved.',
+                          'These lines are a draft only. Internal journal posting remains locked until reconciliation is approved.',
                         )}
                       </p>
                       {(form.lines || []).map((line: any, i: number) => (
@@ -892,9 +888,10 @@ export function Accounting(p: ViewProps) {
                         label={t('Source')}
                         value={form.source}
                         onChange={(v) => set('source', v)}
-                        options={['MISA', 'Bank', 'Spreadsheet', 'Top ID'].map(
-                          (v) => ({ value: v, label: t(v) }),
-                        )}
+                        options={accountingImportSources.map((v) => ({
+                          value: v,
+                          label: t(v),
+                        }))}
                       />
                     </label>
                     {field('dataset', 'Dataset name', 'text', true)}

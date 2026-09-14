@@ -2,6 +2,15 @@
 
 Updated 13 September 2026. **The full approved plan is not complete.** This tested increment is deployed to the existing Hostinger app; it is not an approved accounting cutover. See [release evidence](RELEASE-2026-09-13.md).
 
+**Scope decision — 14 September 2026:** BOH remains an independent internal
+management, accounting and finance workspace. The earlier MISA migration/API
+connection and official-service activation plans are withdrawn. E-invoice
+issuance/signing and tax filing are not application features or completion
+requirements. Preserve historical records and source references; do not erase
+evidence to implement this boundary. The release evidence below remains dated
+to its original verification and is not a claim that this policy change has
+already been deployed.
+
 The subsequent UX-first pilot is detailed in [UX-FIRST-IMPLEMENTATION.md](./UX-FIRST-IMPLEMENTATION.md), including guided payments, background drafts, contextual filters, saved views and remaining staff-acceptance gates.
 
 ## Implemented in this increment
@@ -18,7 +27,7 @@ The subsequent UX-first pilot is detailed in [UX-FIRST-IMPLEMENTATION.md](./UX-F
 | Package price shortcut     | Group discount uses the selected active catalogue price                                                                                                                    | Existing agreements are not repriced                                                                                                               |
 | History and permissions    | Financial history SQL ambiguity fixed; Finance snapshot history limited to readable operational records; TA excluded from financial/draft APIs                             | Existing Director/manager account roles retained                                                                                                   |
 
-New database migration: `20260912174225_workspace_entry_safety.sql`. It adds private drafts and guarded commands, and fixes the existing financial-history query. It does not rewrite students, source balances, past receipts, payroll totals or MISA records.
+New database migration: `20260912174225_workspace_entry_safety.sql`. It adds private drafts and guarded commands, and fixes the existing financial-history query. It does not rewrite students, source balances, past receipts, payroll totals or historical accounting evidence.
 
 ## Staff use
 
@@ -48,12 +57,12 @@ Fresh private public/boh_private and Auth schema/data backups were restored into
 | Admissions and families         | Atomic lead → student → membership → agreement enrollment; explicit family and multiple-guardian masters; stage board, reopening and duplicate-review journey                                 |
 | Collections and agreements      | Durable unallocated family credit, installments, guided reallocations and management-approved linked refunds; downloadable consolidated family statements                                     |
 | Purchasing and banking          | Supplier/account masters; requests/orders/partial deliveries; recurring draft generation; reimbursements, deposits, supplier credits, split bank matching, cash counts and exception queues   |
-| Payroll                         | Employee pay profiles; effective-dated rates; independently confirmed work; allowances/advances/adjustments; payslips and configured tax/insurance calculations                               |
+| Payroll                         | Employee pay profiles; effective-dated rates; independently confirmed work; allowances/advances/adjustments; payslips and accountant-confirmed deduction amounts; no tax filing                |
 | Stock and assets                | Opening counts and concurrency-safe movements; returns/reversals; equipment register; reviewed depreciation and prepayment schedules                                                          |
 | Budgets and funding             | Monthly/annual category budgets, commitments versus actuals, explicit forecasts, owner loans/contributions/repayments                                                                         |
 | Accounting close                | Reconciled opening balances and mappings; complete posted journals/reversals; subledger-to-ledger reconciliation; controlled period close/reopening and accepted reports                      |
 | Communications                  | Reviewed bilingual communication templates and honest manual-send recording                                                                                                                   |
-| Migration and official services | Source coverage/reconciliation, supported MISA exports/API entitlement, asynchronous status evidence, invoice XML/signatures and tax acknowledgements                                         |
+| Internal source reconciliation  | Accountant-supplied source coverage by period/category, reviewed corrections, missing evidence and explicit unresolved differences; no external-system connection or migration              |
 | Rollout                         | Supporting-file restoration drill; signed-in live role checks and supervised staff acceptance; accountant/director monthly close; approved accounting cutover                                  |
 
 Existing worksheet templates remain available for supported operational record kinds. New modules above must receive their own manual forms, validated templates, preview/commit imports, exports and history when implemented; no unsupported module is labelled complete merely because it has a navigation destination.
@@ -63,6 +72,6 @@ Existing worksheet templates remain available for supported operational record k
 1. Private documents and explicit family/supplier/account/employee references, without replacing permanent student identities.
 2. Atomic admissions plus guided receipts/credits/installments and approved refund links.
 3. Purchasing/banking and work-based payroll, followed by stock/assets and budgets/funding.
-4. Reconciled internal ledger/close acceptance, then separately approved official-service activation.
+4. Reconciled internal ledger/close acceptance with the accountant and Director. External e-invoice issuance, signing and tax filing remain outside BOH; there is no subsequent MISA activation release.
 
 Production release must include the database migration before shipping clients that call the new commands. Preserve live staff entries; validate backup restoration and smoke-test each role. Do not roll back a migration by dropping populated draft or command tables.

@@ -1,6 +1,20 @@
 # BOH accounting upgrade — incremental release, 12 September 2026
 
-This is the first tested foundation release, **not completion of the full migration or official accounting activation**.
+This is the first tested foundation release, **not completion of the full internal-finance programme or an approved accounting cutover**.
+
+## Current scope — 14 September 2026
+
+BOH is an independent workspace for internal accounting and finance. The Director
+has withdrawn the earlier MISA integration/migration plan: no MISA connection,
+API posting, synchronization or required handoff is part of BOH. E-invoice
+issuance/signing and tax filing are outside the application scope, not pending
+activation tasks. This decision supersedes the earlier official-service roadmap;
+it does not delete existing records or change their historical provenance.
+
+Reconciled opening balances, approved internal account/report mappings,
+permissions, approvals and a supervised monthly close remain required. The scope
+change is recorded here without claiming that a new application release has
+already been deployed.
 
 The following describes the 12 September baseline. The increment **deployed on 13 September** adds full filtered exports, linked bill-payment recording, private entry drafts and a repaired history query. See [current implementation status](WORKSPACE-IMPLEMENTATION.md) and [release evidence](RELEASE-2026-09-13.md) for tests, rollout boundaries and the remaining plan.
 
@@ -14,9 +28,9 @@ The following describes the 12 September baseline. The increment **deployed on 1
 - Payroll approvals are Director-only. Editing approved unpaid terms clears approval; paid terms and payroll-payment associations are protected; the database computes and caps net pay.
 - Accounting: paginated monthly documents, drafts, edits, submission, approval, archive/restore, deletion of unused never-approved drafts, history and current-page CSV export.
 - CSV source preview with explicit date/number mappings, raw values, source IDs, dataset/view/period/file provenance, duplicate-file protection and possible-duplicate warnings. Source rows are staged, matched to existing cash, excluded with reasons, or converted to a draft obligation. Reviewed matches can be reopened.
-- One cash transaction can corroborate multiple overlapping MISA views; it is never counted twice.
+- One cash transaction can corroborate multiple overlapping historical source views; it is never counted twice.
 - Approved bill/payroll/refund obligations can be matched to already-recorded, reconciled expenses within both balances. This is matching, not payment execution or an extra expense.
-- MISA posting remains locked. No MISA records were bulk exported/imported by this release.
+- This foundation release did not connect or post to an external accounting service, or bulk-migrate its records.
 
 ## Accountant's daily steps / Quy trình kế toán
 
@@ -24,8 +38,8 @@ The following describes the 12 September baseline. The increment **deployed on 1
 2. Maintain package offers in **Classes & catalogue / Lớp học & bảng giá**. This does not alter old agreements.
 3. Prepare a bill, payroll obligation, refund request or journal draft in **Accounting / Kế toán**. Submit for Director/manager approval. Any subsequent edit removes approval.
 4. Match approved obligations to reconciled expense records. Existing payroll-linked payments keep their original payroll link.
-5. For historical review, export a document list from MISA/bank/spreadsheet as CSV, choose its source period and column formats, preview the values, then save **to review**.
-6. Review duplicates and evidence. An invoice is not proof of payment, issuance, signing or tax acceptance.
+5. For historical review, use an accountant-supplied bank/spreadsheet CSV, choose its source period and column formats, preview the values, then save **to review**. No external accounting connection is required.
+6. Review duplicates and evidence. A supplier bill or fee request is not proof of payment; retained source documents do not establish external issuance or filing status.
 7. Use the month selector and status filter for details. Summary cards explicitly cover all periods; exports contain the current page only.
 
 Director / Giám đốc: approve sensitive documents and payroll. Finance / Kế toán: prepare, edit, reconcile and submit. TAs / Trợ giảng: attendance, makeups and support only.
@@ -40,17 +54,19 @@ Director / Giám đốc: approve sensitive documents and payroll. Finance / Kế
 - Browser UI checks use explicitly synthetic network fixtures; they are not presented as live staff sign-in or financial acceptance tests.
 - Repository-wide strict lint has existing errors (including broad legacy record types). Passing functional/type/build tests does not mean lint is clean.
 
+Historical source-review evidence recorded 93 sales, 233 bank, 3 cash and 1
+purchase records in overlapping views. These counts are retained as inspection
+history only: they are not additive, reconciled balances or new migration targets.
+
 ## Still required before full-plan acceptance
 
-- Supported MISA exports, dataset/period inventory, account/partner masters, opening balances and source coverage reconciliation. The previously observed views (93 sales, 233 bank, 3 cash, 1 purchase) overlap and are not additive.
-- Verify issued invoice XML/PDF and tax submission acknowledgements; no claimed verification yet.
-- Accountant-approved cutover and balances, accounting regime/report mappings and API entitlement/configuration. Do not enable paid services automatically.
-- Supported API adapter with credentials stored privately, registered callback verification, duplicate-safe asynchronous processing and actionable error/status handling.
-- Full posted-journal adjustment/reversal workflow and official ledger close. Do not manually enable the posting gate merely because the database supports prepared journals.
+- Accountant-supplied source inventory by period/category, account/partner masters, opening balances and source coverage reconciliation. Overlapping historical views are not additive; previously reviewed source counts are evidence only, not migration targets or balances.
+- Accountant-approved internal cutover, balances and account/report mappings. No API entitlement, external-service activation or paid subscription is required by the internal-workspace plan.
+- Full internal posted-journal adjustment/reversal workflow and reconciled ledger close. Do not manually enable internal posting merely because the database supports prepared journals.
 - Private attachment upload/download and retention policy, import-batch corrections, richer bill/vendor/advance/transfer workflows, detailed payroll rate/work/allowance calculations and payslips.
 - Supervised real Director/Finance/TA acceptance and monthly close before replacing spreadsheets/Top ID as daily entry.
 
-The existing cash-first close is not acceptance of a reconciled statutory ledger. No accounting, tax or payroll legal treatment is inferred from this release.
+The existing cash-first close is not acceptance of a reconciled internal ledger or a statutory reporting system. BOH does not issue legal e-invoices, sign documents or file taxes. Those external processes are not BOH rollout gates; no accounting, tax or payroll legal treatment is inferred from this release.
 
 ## Recovery
 

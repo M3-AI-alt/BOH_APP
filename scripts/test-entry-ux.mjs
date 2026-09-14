@@ -44,6 +44,18 @@ const {
   canExport,
   canWrite,
 } = compiled.exports;
+void test('internal accounting UI has no vendor connection warning or tax filing task', () => {
+  const source = readFileSync('app/accounting-workspace.tsx', 'utf8');
+  assert.doesNotMatch(source, /MISA|API registration|officialActivation/);
+  assert.match(source, /Internal accounting/);
+  assert.match(source, /accountingImportSources\.map/);
+  assert.equal(
+    entryFields('task')
+      .find((f) => f.key === 'category')
+      .options.includes('Tax filing'),
+    false,
+  );
+});
 void test('expense source and recipient fields are distinct, optional and validated', () => {
   assert.deepEqual(
     payingAccountChoices().map((x) => x.id),

@@ -329,6 +329,19 @@ test('invalid and oversized Excel archives are rejected', () => {
   assert.throws(() => b.checkXlsxArchive(Buffer.alloc(22)), /Invalid/);
   assert.throws(() => b.checkXlsxArchive(Buffer.alloc(2000001)), /smaller/);
 });
+test('task worksheet options match the internal-only manual form', async () => {
+  const zip = await require('jszip').loadAsync(
+    fs.readFileSync('public/templates/BOH-task.xlsx'),
+  );
+  const entry = await zip.file('xl/worksheets/sheet1.xml').async('string');
+  const guide = await zip.file('xl/worksheets/sheet2.xml').async('string');
+  const categories = b
+    .bulkFields('task')
+    .find((field) => field.key === 'category').options;
+  assert.ok(entry.includes(categories.join(',')));
+  assert.ok(guide.includes(categories.join(', ')));
+  assert.doesNotMatch(entry + guide, /Tax filing/);
+});
 test('expense worksheet recipient details round trip without losing leading zeros or bypassing source policy', async () => {
   setup();
   const JSZip = require('jszip');

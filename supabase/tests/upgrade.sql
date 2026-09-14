@@ -76,7 +76,7 @@ begin
  perform pg_temp.fails($q$select pg_temp.write_record('qa-pay-one','expense','{"date":"2026-09-12","month":"2026-09","amount":400,"payrollId":""}','qa-upgrade-finance',1)$q$,'detached');
  perform pg_temp.fails(format('select pg_temp.write_record(%L,%L,%L::jsonb,%L,3)','qa-payroll','payroll',(payroll||'{"gross":1200}')::text,'qa-upgrade-director'),'Paid payroll');
  -- Stage/retry commands without changing cash; duplicate views remain separate evidence.
- r=jsonb_build_object('source','MISA','dataset','Synthetic test','period','2026-09','view','Bank','fileName','test.csv','fileHash','test-sha',
+ r=jsonb_build_object('source','Spreadsheet','dataset','Synthetic test','period','2026-09','view','Bank','fileName','test.csv','fileHash','test-sha',
  'rows',jsonb_build_array(jsonb_build_object('externalId','BR-TEST','date','2026-09-12','amount',1000,'name','Test','category','','direction','','reference','','raw',jsonb_build_object('Amount','1.000'))));
  saved=pg_temp.fin('fin_stage',jsonb_build_object('payload',r,'commandId',command_id));
  batch_id=(saved->>'batchId')::uuid;

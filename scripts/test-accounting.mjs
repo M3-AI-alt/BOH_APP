@@ -19,7 +19,7 @@ const guardURL = url(
   "export class AppError extends Error{constructor(m,s=400){super(m);this.status=s;}};export function requireRole(a,roles){if(!a.active||!roles.includes(a.role))throw new AppError('Access denied',403);}",
 );
 const storeURL = url(
-  'export async function storeCall(op,args){globalThis.__accountingCalls.push({op,args});return {ok:true};}',
+  'export async function storeCall(op,args){globalThis.__accountingCalls.push({op,args});return globalThis.__accountingResult ?? {ok:true};}',
 );
 const api = await import(
   url(
@@ -34,7 +34,7 @@ const api = await import(
 const director = { userId: 'qa-director', role: 'Director', active: true },
   finance = { userId: 'qa-finance', role: 'Finance', active: true };
 const payload = {
-  source: 'MISA',
+  source: 'Spreadsheet',
   dataset: 'QA only',
   view: 'Bank',
   period: '2026-08',
@@ -183,6 +183,98 @@ test('Import preview parses on server, preserves raw provenance and reports peri
     /Row 2/,
   );
   assert.throws(() => api.previewSource({ ...payload, mapping: {} }), /Map/);
+});
+test('New imports accept only manual bank, spreadsheet and Top ID source evidence', async () => {
+  assert.deepEqual(domain.accountingImportSources, [
+    'Bank',
+    'Spreadsheet',
+    'Top ID',
+  ]);
+  globalThis.__accountingCalls = [];
+  for (const source of domain.accountingImportSources) {
+    const p = { ...payload, source };
+    const preview = await api.accountingCommand(
+      finance,
+      command('preview', { payload: p }),
+    );
+    assert.equal(preview.source, source);
+    assert.equal(preview.rows[0].raw.Amount, '1.200.000');
+    await api.accountingCommand(finance, command('stage', { payload: p }));
+  }
+  assert.deepEqual(
+    globalThis.__accountingCalls.map((c) => c.op),
+    Array(3).fill('fin_stage'),
+  );
+  assert.deepEqual(
+    globalThis.__accountingCalls.map((c) => c.args.payload.source),
+    domain.accountingImportSources,
+  );
+});
+test('Provider imports are rejected in preview and stage without reaching storage', async () => {
+  globalThis.__accountingCalls = [];
+  for (const source of ['MISA', 'misa', 'AMIS MISA', '', null, undefined]) {
+    for (const operation of ['preview', 'stage']) {
+      await assert.rejects(
+        api.accountingCommand(
+          director,
+          command(operation, { payload: { ...payload, source } }),
+        ),
+        (e) =>
+          e.status === 400 &&
+          /Choose Bank, Spreadsheet or Top ID/.test(e.message),
+      );
+    }
+  }
+  assert.deepEqual(globalThis.__accountingCalls, []);
+});
+test('Internal accounting responses omit obsolete connection status without changing historical evidence', async (t) => {
+  globalThis.__accountingCalls = [];
+  globalThis.__accountingResult = {
+    rows: [{ source: 'MISA', external_id: 'legacy-only', amount: 100 }],
+    total: 1,
+    summary: { unreviewed: 1, submitted: 2, approved: 3 },
+    misa: { connected: false, officialActivation: false },
+  };
+  t.after(() => {
+    delete globalThis.__accountingResult;
+  });
+  for (const query of ['', 'export=1&tab=imports', 'queue=1']) {
+    const result = await api.listAccounting(
+      director,
+      new URLSearchParams(query),
+    );
+    assert.equal(Object.hasOwn(result, 'misa'), false);
+    assert.deepEqual(result.rows, globalThis.__accountingResult.rows);
+    assert.deepEqual(result.summary, globalThis.__accountingResult.summary);
+    assert.equal(result.total, 1);
+  }
+  assert.equal(Object.hasOwn(globalThis.__accountingResult, 'misa'), true);
+});
+test('Internal journal posting remains available while external posting and tax actions are unsupported', async () => {
+  globalThis.__accountingCalls = [];
+  for (const operation of [
+    'connect_misa',
+    'post_misa',
+    'migrate_misa',
+    'issue_invoice',
+    'file_tax',
+  ]) {
+    await assert.rejects(
+      api.accountingCommand(director, command(operation, { payload: {} })),
+      /Unsupported accounting action/,
+    );
+  }
+  assert.deepEqual(globalThis.__accountingCalls, []);
+  await api.accountingCommand(
+    director,
+    command('action', {
+      revision: 2,
+      payload: { action: 'post', note: 'Reviewed internal journal' },
+    }),
+  );
+  assert.equal(globalThis.__accountingCalls.length, 1);
+  assert.equal(globalThis.__accountingCalls[0].op, 'fin_action');
+  assert.equal(globalThis.__accountingCalls[0].args.payload.action, 'post');
 });
 test('TA and inactive accounts cannot list, import, approve or inspect accounting history', async () => {
   for (const a of [

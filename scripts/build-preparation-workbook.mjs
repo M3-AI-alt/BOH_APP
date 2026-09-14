@@ -138,7 +138,7 @@ for (const [area, keys] of areas) {
         table.existingCount,
         null,
         key === 'company'
-          ? 'Gồm cấu hình kế toán / thuế'
+          ? 'Gồm chính sách kế toán nội bộ'
           : m.area === 7
             ? 'Chỉ điền khi có phát sinh'
             : '',
@@ -428,7 +428,7 @@ control.getRange('A7:D13').values = [
     'Cần kế toán đối chiếu sao kê',
   ]),
   [
-    'MISA / Excel khác',
+    'Sao kê / bảng tính khác',
     null,
     'Chưa thu thập thêm trong tệp này',
     'Không được coi là đầy đủ',
