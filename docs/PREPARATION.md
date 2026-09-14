@@ -41,7 +41,7 @@ tax acknowledgements and missing supporting files remain unverified.
 
 Do not upload the workbook to BOH's ordinary add-only worksheet importer. Use
 **More → Import & export → Accountant preparation** to preview it and save
-preparation evidence for review when this release is available.
+preparation evidence for review.
 
 ## Screenshot-to-BOH workflow mapping
 
@@ -142,9 +142,22 @@ confirm unchanged business-record fingerprint, record/staff/auth counts and
 August collections, zero preparation reviews, enabled RLS, denied public/client
 access and immutable service-role evidence. Database lint reports no errors;
 the existing leaked-password-protection advisory remains unchanged.
-Hostinger publication is pending browser reauthorization of its expired CLI
-login; the live site still serves the prior build. No workbook or source-data
-backup was included in GitHub or a public asset bundle.
+Hostinger publication completed on 2026-09-14 at 04:41:53 UTC (11:41:53 Vietnam
+time), following renewed authorization. The deployed source is GitHub commit
+`e10ad4a84be11aa5d0237db3122ce6be04cb6dd5`, which includes application commit
+`fcf8b06`; build `01a09e37-d35e-735c-82bc-32a107f4bde1` is completed on the existing
+`benoxfordhub.online` site. Existing hosting settings and server secrets were
+preserved. No workbook or source-data backup was included in GitHub or a public
+asset bundle.
+
+Live read-only checks at 04:42 UTC passed: English/Vietnamese login pages and all
+16 referenced static assets return 200 with appropriate types; changed asset
+hashes confirm the new bundle. Preparation GET and same-origin empty POST both
+reject anonymous access with 401 JSON and `private, no-store`. A random,
+syntactically valid synthetic session is also rejected with 401 after database
+session lookup. No real credentials or financial submissions were used in these
+checks. This deployment delivers preparation preview/staging, not the outstanding
+full-finance workflows listed below.
 
 Still required before full finance use: connected daily workflows, detailed
 payroll/stock/assets/budgets/funding, reviewed commit adapters, private documents,
