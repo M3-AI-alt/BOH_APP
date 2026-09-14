@@ -42,7 +42,28 @@ posting, matching, payment and corrections keep their existing separate rules.
 Migration `20260914085241_accounting_worksheets.sql` applied to the existing
 Supabase project. Post-migration record fingerprint and totals match the
 baseline; the new private worksheet registry is empty. Security advisors have
-no new warnings. Application publishing remains to be confirmed below.
+no new warnings.
+
+Application commit `950b5c2b4d4535c76477ad6c32a24652bcc6a688` pushed to GitHub
+main and deployed to `https://benoxfordhub.online/`. Hostinger build
+`01a09f33-ed17-7356-abd3-78781cdf6954` completed at
+`2026-09-14T09:17:35Z`. Live checks confirm:
+
+- Login and all 11 linked JS/CSS assets return 200.
+- All 18 public XLSX files return 200 and match the repository bytes, including
+  both new accounting templates.
+- Anonymous worksheet API requests return 401 JSON with private, no-store cache
+  policy. No authenticated test writes were made to production.
+- Local browser manual and uploaded-CSV source entries both preview, save and
+  refresh into the review list with unchanged synthetic cash records.
+
+Known non-blocking hosting issue: public XLSX responses have `text/plain`
+Content-Type. The files are valid Excel ZIP archives and the app's same-origin
+download links use the `download` attribute; a direct file URL may render rather
+than download. Correcting the hosting MIME mapping is a separate follow-up.
+Strict lint diagnostics (including existing explicit-any/style rules) are not
+fully clean; passing gates above are tests, typecheck, build and focused SQL/UI
+verification, not a claim of zero lint warnings or staff usability acceptance.
 
 These are improvements to existing entry tools, not acceptance of the complete
 finance roadmap. Staff usability acceptance and internal accounting cutover
