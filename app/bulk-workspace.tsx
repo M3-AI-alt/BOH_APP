@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Download,
   Upload,
@@ -22,15 +22,22 @@ import { csvCell } from '@/lib/accounting';
 import type { ViewProps } from './views';
 import { PreparationWorkspace } from './preparation-workspace';
 
-export function BulkWorkspace(p: ViewProps) {
+export function BulkWorkspace(
+  p: ViewProps & {
+    focusedTask?: string;
+    onImportStateChange?: (state: { pending: boolean; busy: boolean }) => void;
+  },
+) {
   const { t, message } = useLanguage();
   const a = p.snapshot.actor;
   const [kind, setKind] = useState(
-    a.role === 'TA'
-      ? 'attendance'
-      : a.role === 'Finance'
-        ? 'receipt'
-        : 'student',
+    p.focusedTask && canImport(a, p.focusedTask)
+      ? p.focusedTask
+      : a.role === 'TA'
+        ? 'attendance'
+        : a.role === 'Finance'
+          ? 'receipt'
+          : 'student',
   );
   const [upload, setUpload] = useState<{ csv?: string; xlsx?: string }>({});
   const [fileName, setFileName] = useState('');
@@ -44,8 +51,27 @@ export function BulkWorkspace(p: ViewProps) {
   const [allMonths, setAllMonths] = useState(true);
   const [classId, setClassId] = useState('');
   const input = useRef<HTMLInputElement>(null);
+  const reading = useRef(0);
   const permitted = Object.keys(bulkTasks).filter((k) => canExport(a, k));
   const editable = canImport(a, kind);
+  const pending =
+    !!fileName &&
+    (!preview ||
+      preview.rows.some(
+        (row) => row.status === 'Ready' || row.status === 'Needs correction',
+      ));
+  useEffect(() => {
+    p.onImportStateChange?.({ pending, busy });
+  }, [p.onImportStateChange, pending, busy]);
+  useEffect(() => {
+    if (!pending && !busy) return;
+    const protectReview = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protectReview);
+    return () => window.removeEventListener('beforeunload', protectReview);
+  }, [pending, busy]);
   const url = (action: string) =>
     '/api/worksheets?' +
     new URLSearchParams({
@@ -55,6 +81,17 @@ export function BulkWorkspace(p: ViewProps) {
       classId,
     });
   function select(value: string) {
+    if (!canExport(a, value) || busy) return;
+    if (
+      pending &&
+      !window.confirm(
+        t(
+          'Switch task? The unsaved import review will be discarded. Your worksheet is kept.',
+        ),
+      )
+    )
+      return;
+    reading.current += 1;
     setKind(value);
     setPreview(null);
     setUpload({});
@@ -63,6 +100,7 @@ export function BulkWorkspace(p: ViewProps) {
     if (input.current) input.current.value = '';
   }
   async function choose(file?: File) {
+    const request = ++reading.current;
     setPreview(null);
     setUpload({});
     setError('');
@@ -70,7 +108,8 @@ export function BulkWorkspace(p: ViewProps) {
     if (!file) return;
     try {
       if (file.size > 2_000_000) throw Error('Use a file smaller than 2 MB.');
-      if (/\.csv$/i.test(file.name)) setUpload({ csv: await file.text() });
+      let nextUpload: { csv?: string; xlsx?: string };
+      if (/\.csv$/i.test(file.name)) nextUpload = { csv: await file.text() };
       else if (/\.xlsx$/i.test(file.name)) {
         const data = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -78,11 +117,15 @@ export function BulkWorkspace(p: ViewProps) {
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
-        setUpload({ xlsx: data });
+        nextUpload = { xlsx: data };
       } else throw Error('Choose an Excel (.xlsx) or CSV worksheet.');
-      setFileName(file.name);
+      if (request === reading.current) {
+        setUpload(nextUpload);
+        setFileName(file.name);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to read file.');
+      if (request === reading.current)
+        setError(e instanceof Error ? e.message : 'Unable to read file.');
     }
   }
   async function run(action: 'preview' | 'commit') {
@@ -135,50 +178,58 @@ export function BulkWorkspace(p: ViewProps) {
   const bad =
     preview?.rows.filter((r) => r.status === 'Needs correction').length || 0;
   const ready = preview?.rows.filter((r) => r.status === 'Ready').length || 0;
+  if (p.focusedTask && !canImport(a, p.focusedTask))
+    return (
+      <p role="alert">
+        {t('Your role has read-only access to these records.')}
+      </p>
+    );
   return (
     <div className="bulk-workspace">
-      {a.active && ['Director', 'Finance'].includes(a.role) && (
-        <PreparationWorkspace />
-      )}
-      <Panel
-        title={t('Import & export')}
-        subtitle={t(
-          'Enter one record or fill a worksheet. Review before saving.',
-        )}
-      >
-        <div className="bulk-toolbar">
-          <Choice
-            label={t('Choose a task')}
-            value={kind}
-            onChange={select}
-            disabled={busy}
-            options={permitted.map((k) => ({
-              value: k,
-              label: t(bulkTasks[k].label),
-            }))}
-          />
-          <span
-            className={
-              'bulk-category bulk-' + bulkTasks[kind].group.toLowerCase()
-            }
-          >
-            {t(bulkTasks[kind].group)}
-          </span>
-          {editable && (
-            <Button
+      {!p.focusedTask &&
+        a.active &&
+        ['Director', 'Finance'].includes(a.role) && <PreparationWorkspace />}
+      {!p.focusedTask && (
+        <Panel
+          title={t('Import & export')}
+          subtitle={t(
+            'Enter one record or fill a worksheet. Review before saving.',
+          )}
+        >
+          <div className="bulk-toolbar">
+            <Choice
+              label={t('Choose a task')}
+              value={kind}
+              onChange={select}
               disabled={busy}
-              onClick={() =>
-                kind === 'attendance'
-                  ? p.navigate('Attendance')
-                  : p.open(kind, undefined, { month: p.month })
+              options={permitted.map((k) => ({
+                value: k,
+                label: t(bulkTasks[k].label),
+              }))}
+            />
+            <span
+              className={
+                'bulk-category bulk-' + bulkTasks[kind].group.toLowerCase()
               }
             >
-              <Plus size={16} />
-              {t('Manual entry')}
-            </Button>
-          )}
-        </div>
-      </Panel>
+              {t(bulkTasks[kind].group)}
+            </span>
+            {editable && (
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  kind === 'attendance'
+                    ? p.navigate('Attendance')
+                    : p.open(kind, undefined, { month: p.month })
+                }
+              >
+                <Plus size={16} />
+                {t('Manual entry')}
+              </Button>
+            )}
+          </div>
+        </Panel>
+      )}
       <div className="bulk-cards">
         <Panel
           title={t('1. Download a template')}
@@ -328,40 +379,42 @@ export function BulkWorkspace(p: ViewProps) {
           />
         </Panel>
       )}
-      <Panel
-        title={t('Export saved records')}
-        subtitle={t(
-          'Exports include record IDs and revisions. They are reports, not import templates.',
-        )}
-      >
-        <div className="bulk-toolbar">
-          <label>
-            <input
-              type="checkbox"
-              checked={allMonths}
-              onChange={(e) => setAllMonths(e.target.checked)}
-            />{' '}
-            {t('All dates')}
-          </label>
-          {!allMonths && <span>{p.month}</span>}
-          <Choice
-            label={t('All classes')}
-            value={classId}
-            onChange={setClassId}
-            options={[
-              { value: '', label: t('All classes') },
-              ...entries(p.snapshot.records, 'class').map((c) => ({
-                value: c.id,
-                label: c.name,
-              })),
-            ]}
-          />
-          <a className="bulk-link" href={url('export')}>
-            <Download size={16} />
-            {t('Export records (CSV)')}
-          </a>
-        </div>
-      </Panel>
+      {!p.focusedTask && (
+        <Panel
+          title={t('Export saved records')}
+          subtitle={t(
+            'Exports include record IDs and revisions. They are reports, not import templates.',
+          )}
+        >
+          <div className="bulk-toolbar">
+            <label>
+              <input
+                type="checkbox"
+                checked={allMonths}
+                onChange={(e) => setAllMonths(e.target.checked)}
+              />{' '}
+              {t('All dates')}
+            </label>
+            {!allMonths && <span>{p.month}</span>}
+            <Choice
+              label={t('All classes')}
+              value={classId}
+              onChange={setClassId}
+              options={[
+                { value: '', label: t('All classes') },
+                ...entries(p.snapshot.records, 'class').map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                })),
+              ]}
+            />
+            <a className="bulk-link" href={url('export')}>
+              <Download size={16} />
+              {t('Export records (CSV)')}
+            </a>
+          </div>
+        </Panel>
+      )}
       <details className="bulk-guide">
         <summary>{t('Field guide and safety rules')}</summary>
         <p>
@@ -390,7 +443,7 @@ export function BulkWorkspace(p: ViewProps) {
           ])}
         />
       </details>
-      {a.role !== 'TA' && (
+      {!p.focusedTask && a.role !== 'TA' && (
         <Button variant="outline" onClick={() => p.navigate('Accounting')}>
           {t('Accounting documents and source reconciliation')}
         </Button>

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Panel, DataTable, Badge, Choice } from './ui';
 import { entries, cleanSearch, today } from '@/lib/domain';
 import type { ViewProps } from './views';
+import { EntryActions } from './entry-actions';
 export function Payroll(p: ViewProps) {
   const { t, money } = useLanguage();
   const rows = entries(p.snapshot.records, 'payroll').filter(
@@ -19,15 +20,14 @@ export function Payroll(p: ViewProps) {
       subtitle={t(
         'Approved salary calculations are separate from actual cash payments. Tax and insurance amounts are entered and confirmed by your accountant.',
       )}
-      action={
-        <Button
-          variant="outline"
-          onClick={() => p.open('payroll', undefined, { month: p.month })}
-        >
-          {t('Add payroll entry')}
-        </Button>
-      }
     >
+      <EntryActions
+        {...p}
+        kind="payroll"
+        manualLabel="Add payroll entry"
+        defaults={{ month: p.month }}
+        context={p.month}
+      />
       <DataTable
         headings={[
           'Staff member',
@@ -140,17 +140,15 @@ export function AccountantTasks(p: ViewProps) {
               label: t(v === 'Open' ? 'Unfinished tasks' : v),
             }))}
           />
-          <Button
-            variant="outline"
-            onClick={() =>
-              p.open('task', undefined, { assignedTo: 'Accountant' })
-            }
-          >
-            {t('Add task')}
-          </Button>
         </div>
       }
     >
+      <EntryActions
+        {...p}
+        kind="task"
+        manualLabel="Add task"
+        defaults={{ assignedTo: 'Accountant' }}
+      />
       <DataTable
         headings={[
           'Work date / due',

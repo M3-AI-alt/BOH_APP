@@ -1,12 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import {
-  Download,
-  FileInput,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react';
+import { Download, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,7 +9,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Badge, Choice, DataTable, Panel, Picker } from './ui';
+import { Badge, Choice, DataTable, Empty, Panel, Picker } from './ui';
+import { AccountingWorksheetEntry } from './accounting-worksheet-entry';
 import { useLanguage } from './language';
 import {
   accountingImportSources,
@@ -240,6 +235,10 @@ export function Accounting(p: ViewProps) {
           return;
         }
         await command({ operation: 'stage', payload: form });
+        setTab('imports');
+        setStatus('');
+        setOffset(0);
+        setFocusedId('');
       } else {
         await command({
           operation:
@@ -464,16 +463,6 @@ export function Accounting(p: ViewProps) {
             </p>
           </div>
         </div>
-        <div className="button-row">
-          <Button variant="outline" onClick={() => open('import')}>
-            <FileInput size={16} />
-            {t('Import CSV')}
-          </Button>
-          <Button onClick={() => open('document')}>
-            <Plus size={16} />
-            {t('New document')}
-          </Button>
-        </div>
       </div>
       <div className="accounting-stats">
         <Panel title={t('Needs confirmation')} subtitle={t('All periods')}>
@@ -538,6 +527,20 @@ export function Accounting(p: ViewProps) {
           {t(exporting ? 'Preparing export…' : 'Export all matching records')}
         </Button>
       </div>
+      <AccountingWorksheetEntry
+        key={tab}
+        kind={tab === 'imports' ? 'source' : 'documents'}
+        month={p.month}
+        onManualDocument={() => open('document')}
+        onOtherCsv={() => open('import')}
+        onSaved={() => {
+          setStatus('');
+          setOffset(0);
+          setFocusedId('');
+          setVersion((v) => v + 1);
+          void p.refresh?.();
+        }}
+      />
       {focusedId && (
         <div className="accounting-notice">
           <span>
@@ -565,157 +568,167 @@ export function Accounting(p: ViewProps) {
               'Source evidence stays attached to the review history. Cash totals stay in Finance.',
             )}
           >
-            <DataTable
-              headings={
-                tab === 'imports'
-                  ? [
-                      'Source / document',
-                      'Date',
-                      'Amount',
-                      'Status',
-                      'Review / actions',
-                    ]
-                  : [
-                      'Document',
-                      'Date',
-                      'Amount',
-                      'Allocated payments',
-                      'Status',
-                      'Review / actions',
-                    ]
-              }
-              rows={data.rows.map((r: any) =>
-                tab === 'imports'
-                  ? [
-                      <span>
-                        <strong>{r.external_id}</strong>
-                        <small>
-                          {r.source} · {r.dataset} · {r.view_name}
-                        </small>
-                        <small>
-                          {r.file_name} · {t('Row')} {r.row_number + 1}
-                        </small>
-                        {Number(r.possible_duplicates) > 0 && (
-                          <Badge tone="amber">{t('Possible duplicate')}</Badge>
-                        )}
-                      </span>,
-                      r.document_date,
-                      money(Number(r.amount)),
-                      <Badge tone={tone(r.status)}>{t(r.status)}</Badge>,
-                      <div className="button-row">
-                        {r.status === 'Needs confirmation' && (
-                          <Button
-                            variant="outline"
-                            onClick={() => open('review', r)}
-                          >
-                            {t('Review')}
-                          </Button>
-                        )}
-                        {['Matched', 'Excluded'].includes(r.status) && (
-                          <Button
-                            variant="outline"
-                            onClick={() => open('review', r)}
-                          >
-                            {t('Reopen review')}
-                          </Button>
-                        )}
-                        <Button variant="ghost" onClick={() => history(r)}>
-                          {t('History')}
-                        </Button>
-                      </div>,
-                    ]
-                  : [
-                      <span>
-                        <strong>{r.title}</strong>
-                        <small>
-                          {t(r.kind)} · {r.counterparty}
-                        </small>
-                      </span>,
-                      r.date,
-                      money(Number(r.amount)),
-                      money(Number(r.paid)),
-                      <Badge tone={tone(r.status)}>{t(r.status)}</Badge>,
-                      <div className="button-row">
-                        {['Draft', 'Submitted', 'Approved'].includes(
-                          r.status,
-                        ) &&
-                          !Number(r.paid) && (
-                            <Button
-                              variant="ghost"
-                              onClick={() => open('document', r)}
-                            >
-                              {t('Edit')}
-                            </Button>
+            {!data.rows.length ? (
+              <Empty
+                title="No records in this view yet"
+                detail="Download the worksheet sample and import your entries, or choose Add manually above. Check the period and status if you expect existing records."
+              />
+            ) : (
+              <DataTable
+                headings={
+                  tab === 'imports'
+                    ? [
+                        'Source / document',
+                        'Date',
+                        'Amount',
+                        'Status',
+                        'Review / actions',
+                      ]
+                    : [
+                        'Document',
+                        'Date',
+                        'Amount',
+                        'Allocated payments',
+                        'Status',
+                        'Review / actions',
+                      ]
+                }
+                rows={data.rows.map((r: any) =>
+                  tab === 'imports'
+                    ? [
+                        <span>
+                          <strong>{r.external_id}</strong>
+                          <small>
+                            {r.source} · {r.dataset} · {r.view_name}
+                          </small>
+                          <small>
+                            {r.file_name} · {t('Row')}{' '}
+                            {r.raw?._bohWorksheetRow ?? r.row_number + 1}
+                          </small>
+                          {Number(r.possible_duplicates) > 0 && (
+                            <Badge tone="amber">
+                              {t('Possible duplicate')}
+                            </Badge>
                           )}
-                        {r.status === 'Draft' && (
-                          <Button
-                            variant="outline"
-                            onClick={() => open('confirm', r, 'submit')}
-                          >
-                            {t('Submit for approval')}
-                          </Button>
-                        )}
-                        {r.status === 'Submitted' &&
-                          p.snapshot.actor.role === 'Director' && (
-                            <Button
-                              onClick={() => open('confirm', r, 'approve')}
-                            >
-                              {t('Approve')}
-                            </Button>
-                          )}
-                        {['Approved', 'Posted'].includes(r.status) &&
-                          r.kind === 'bill' &&
-                          Number(r.paid) < Number(r.amount) && (
+                        </span>,
+                        r.document_date,
+                        money(Number(r.amount)),
+                        <Badge tone={tone(r.status)}>{t(r.status)}</Badge>,
+                        <div className="button-row">
+                          {r.status === 'Needs confirmation' && (
                             <Button
                               variant="outline"
-                              onClick={() => open('pay', r)}
+                              onClick={() => open('review', r)}
                             >
-                              {t('Record bill payment')}
+                              {t('Review')}
                             </Button>
                           )}
-                        {['Approved', 'Posted'].includes(r.status) &&
-                          r.kind !== 'journal' &&
-                          Number(r.paid) < Number(r.amount) && (
+                          {['Matched', 'Excluded'].includes(r.status) && (
                             <Button
                               variant="outline"
-                              onClick={() => open('settle', r)}
+                              onClick={() => open('review', r)}
                             >
-                              {t('Match existing payment')}
+                              {t('Reopen review')}
                             </Button>
                           )}
-                        {['Draft', 'Submitted'].includes(r.status) && (
-                          <Button
-                            variant="ghost"
-                            onClick={() => open('confirm', r, 'archive')}
-                          >
-                            {t('Archive')}
+                          <Button variant="ghost" onClick={() => history(r)}>
+                            {t('History')}
                           </Button>
-                        )}
-                        {r.status === 'Archived' && (
-                          <Button
-                            variant="ghost"
-                            onClick={() => open('confirm', r, 'restore')}
-                          >
-                            {t('Restore')}
-                          </Button>
-                        )}
-                        {r.status === 'Draft' &&
-                          !r.source_row_id &&
-                          !r.ever_approved && (
+                        </div>,
+                      ]
+                    : [
+                        <span>
+                          <strong>{r.title}</strong>
+                          <small>
+                            {t(r.kind)} · {r.counterparty}
+                          </small>
+                        </span>,
+                        r.date,
+                        money(Number(r.amount)),
+                        money(Number(r.paid)),
+                        <Badge tone={tone(r.status)}>{t(r.status)}</Badge>,
+                        <div className="button-row">
+                          {['Draft', 'Submitted', 'Approved'].includes(
+                            r.status,
+                          ) &&
+                            !Number(r.paid) && (
+                              <Button
+                                variant="ghost"
+                                onClick={() => open('document', r)}
+                              >
+                                {t('Edit')}
+                              </Button>
+                            )}
+                          {r.status === 'Draft' && (
+                            <Button
+                              variant="outline"
+                              onClick={() => open('confirm', r, 'submit')}
+                            >
+                              {t('Submit for approval')}
+                            </Button>
+                          )}
+                          {r.status === 'Submitted' &&
+                            p.snapshot.actor.role === 'Director' && (
+                              <Button
+                                onClick={() => open('confirm', r, 'approve')}
+                              >
+                                {t('Approve')}
+                              </Button>
+                            )}
+                          {['Approved', 'Posted'].includes(r.status) &&
+                            r.kind === 'bill' &&
+                            Number(r.paid) < Number(r.amount) && (
+                              <Button
+                                variant="outline"
+                                onClick={() => open('pay', r)}
+                              >
+                                {t('Record bill payment')}
+                              </Button>
+                            )}
+                          {['Approved', 'Posted'].includes(r.status) &&
+                            r.kind !== 'journal' &&
+                            Number(r.paid) < Number(r.amount) && (
+                              <Button
+                                variant="outline"
+                                onClick={() => open('settle', r)}
+                              >
+                                {t('Match existing payment')}
+                              </Button>
+                            )}
+                          {['Draft', 'Submitted'].includes(r.status) && (
                             <Button
                               variant="ghost"
-                              onClick={() => open('confirm', r, 'delete')}
+                              onClick={() => open('confirm', r, 'archive')}
                             >
-                              {t('Delete unused draft')}
+                              {t('Archive')}
                             </Button>
                           )}
-                        <Button variant="ghost" onClick={() => history(r)}>
-                          {t('History')}
-                        </Button>
-                      </div>,
-                    ],
-              )}
-            />
+                          {r.status === 'Archived' && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => open('confirm', r, 'restore')}
+                            >
+                              {t('Restore')}
+                            </Button>
+                          )}
+                          {r.status === 'Draft' &&
+                            !r.source_row_id &&
+                            !r.ever_approved && (
+                              <Button
+                                variant="ghost"
+                                onClick={() => open('confirm', r, 'delete')}
+                              >
+                                {t('Delete unused draft')}
+                              </Button>
+                            )}
+                          <Button variant="ghost" onClick={() => history(r)}>
+                            {t('History')}
+                          </Button>
+                        </div>,
+                      ],
+                )}
+              />
+            )}
             <div className="accounting-pagination">
               <Button
                 variant="outline"
@@ -879,7 +892,7 @@ export function Accounting(p: ViewProps) {
                   <>
                     <div className="wide accounting-notice">
                       {t(
-                        'Export a document list as CSV first. Map its columns, preview the values, then save to review—not to collections.',
+                        'Use this only for an existing CSV with different columns. Map its fields, preview the values, then save to review—not to collections. For new entries, use the downloadable worksheet sample.',
                       )}
                     </div>
                     <label>

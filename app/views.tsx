@@ -42,6 +42,7 @@ import {
 import { Payroll, AccountantTasks } from './finance-work';
 import { SourceReview } from './source-review';
 import { FilterBar } from './filter-bar';
+import { EntryActions } from './entry-actions';
 import {
   emptyFilters,
   matchesFilters,
@@ -334,10 +335,13 @@ export function Attendance(p: ViewProps) {
   const [lessonSearch, setLessonSearch] = useState('');
   if (!cl)
     return (
-      <Empty
-        title={t('No classes available')}
-        detail={t('Ask the Director to check class setup.')}
-      />
+      <>
+        <EntryActions {...p} kind="class" manualLabel="Add class" />
+        <Empty
+          title={t('No classes available')}
+          detail={t('Ask the Director to check class setup.')}
+        />
+      </>
     );
   const members = attendanceRoster(records, cl.id, today(), rosterScope);
   const attendance = entries(records, 'attendance').filter(
@@ -424,7 +428,7 @@ export function Attendance(p: ViewProps) {
               .join(' + ') || t('Archived timetable')}
           </span>
         </div>
-        {actor.role === 'Director' && (
+        {actor.role === 'Director' && tab !== 'calendar' && (
           <Button
             variant="outline"
             onClick={() => p.open('calendar', undefined, { classId: cl.id })}
@@ -441,6 +445,25 @@ export function Attendance(p: ViewProps) {
           <TabsTrigger value="calendar">{t('Calendar')}</TabsTrigger>
         </TabsList>
         <TabsContent value="grid">
+          {canEdit && (
+            <EntryActions
+              {...p}
+              kind="attendance"
+              manualLabel="Enter attendance"
+              context={cl.name}
+              onManual={() => {
+                setRosterScope('current');
+                requestAnimationFrame(() => {
+                  const grid = document.getElementById('attendance-entry-grid');
+                  grid?.scrollIntoView({ block: 'start' });
+                  const first = grid?.querySelector<HTMLElement>(
+                    '[role="combobox"]:not(:disabled)',
+                  );
+                  (first || grid)?.focus();
+                });
+              }}
+            />
+          )}
           <FilterBar
             module="attendance"
             actor={actor}
@@ -549,7 +572,11 @@ export function Attendance(p: ViewProps) {
               {message(error)}
             </div>
           )}
-          <section className="panel attendance-panel">
+          <section
+            id="attendance-entry-grid"
+            tabIndex={-1}
+            className="panel attendance-panel"
+          >
             <div className="panel-heading">
               <div>
                 <h2>{cl.name}</h2>
@@ -729,15 +756,16 @@ export function Attendance(p: ViewProps) {
             </div>
           </section>
           {actor.role === 'Director' && (
-            <Button
-              variant="outline"
-              className="below-action"
-              onClick={() =>
-                p.open('membership', undefined, { classId: cl.id })
-              }
-            >
-              <Plus size={16} /> {t('Add existing student to this class')}
-            </Button>
+            <details className="bulk-guide">
+              <summary>{t('Class memberships')}</summary>
+              <EntryActions
+                {...p}
+                kind="membership"
+                manualLabel="Add existing student to this class"
+                defaults={{ classId: cl.id }}
+                context={cl.name}
+              />
+            </details>
           )}
         </TabsContent>
         <TabsContent value="makeup">
@@ -771,6 +799,13 @@ export function Attendance(p: ViewProps) {
             title={t('Timetable exceptions')}
             subtitle={t('Holiday closures and extra regular class dates')}
           >
+            <EntryActions
+              {...p}
+              kind="calendar"
+              manualLabel="Holiday / lesson change"
+              defaults={{ classId: cl.id }}
+              context={cl.name}
+            />
             <DataTable
               headings={['Date', 'Class', 'Lesson status', 'Reason', '']}
               rows={entries(records, 'calendar')
@@ -840,17 +875,16 @@ function LessonLog(
           <Button variant="outline" onClick={() => setAll(!all)}>
             {all ? t('All accessible classes') : t('This class only')}
           </Button>
-          {p.snapshot.actor.role !== 'Finance' && (
-            <Button
-              className="primary"
-              onClick={() => p.open(p.kind, undefined, { classId: p.classId })}
-            >
-              <Plus size={15} /> {t('Add lesson')}
-            </Button>
-          )}
         </div>
       }
     >
+      <EntryActions
+        {...p}
+        kind={p.kind}
+        manualLabel="Add lesson"
+        defaults={{ classId: p.classId }}
+        context={classes.find((cl) => cl.id === p.classId)?.name}
+      />
       <DataTable
         headings={[
           'Student',
@@ -980,6 +1014,12 @@ export function Students(p: ViewProps) {
           : '',
       })}
     >
+      <EntryActions
+        {...p}
+        kind="student"
+        manualLabel="Add student"
+        defaults={p.classFilter ? { classId: p.classFilter } : undefined}
+      />
       <div
         role="group"
         aria-label={t('Student list view')}
@@ -1226,6 +1266,7 @@ export function Renewals(p: ViewProps) {
           'No new package price is assumed. Dates are estimates based on the timetable and recorded attendance.',
         )}
       >
+        <EntryActions {...p} kind="package" manualLabel="Add renewal" />
         <DataTable
           headings={[
             'Student',
@@ -1306,6 +1347,7 @@ export function Packages(p: ViewProps) {
           'Every renewal is a separate record. Existing source balances are retained.',
         )}
       >
+        <EntryActions {...p} kind="package" manualLabel="Add package" />
         <DataTable
           headings={[
             'Student',
@@ -1511,17 +1553,6 @@ export function Finance(p: ViewProps) {
         <Button
           variant="outline"
           onClick={() =>
-            p.open('expense', undefined, {
-              date:
-                p.month === today().slice(0, 7) ? today() : monthEnd(p.month),
-            })
-          }
-        >
-          <Plus size={15} /> {t('Record expense')}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() =>
             downloadCsv('finance-' + p.month, [
               [t('Period'), p.month, t('Through'), cutoff],
               [
@@ -1721,6 +1752,12 @@ export function Finance(p: ViewProps) {
               'A payment appears in the month it was received, including deposits and partial payments.',
             )}
           >
+            <EntryActions
+              {...p}
+              kind="receipt"
+              manualLabel="Record payment"
+              defaults={{ date: today() }}
+            />
             <DataTable
               visibleColumns={
                 receiptFilter.columns.length
@@ -1800,6 +1837,12 @@ export function Finance(p: ViewProps) {
               'Text-formatted source amounts stay visible separately until entered as verified numbers.',
             )}
           >
+            <EntryActions
+              {...p}
+              kind="expense"
+              manualLabel="Record expense"
+              defaults={{ date: today() }}
+            />
             <DataTable
               visibleColumns={
                 expenseFilter.columns.length
@@ -1922,12 +1965,12 @@ export function Finance(p: ViewProps) {
             subtitle={t(
               'Expected bills are kept separate from expenses actually paid.',
             )}
-            action={
-              <Button variant="outline" onClick={() => p.open('commitment')}>
-                <Plus size={15} /> {t('Add commitment')}
-              </Button>
-            }
           >
+            <EntryActions
+              {...p}
+              kind="commitment"
+              manualLabel="Add commitment"
+            />
             <DataTable
               headings={[
                 'Category',
@@ -1989,17 +2032,14 @@ function Reconciliation(p: ViewProps) {
       subtitle={t(
         'Enter statement balances for each account. Original workbooks did not include bank statements.',
       )}
-      action={
-        <Button
-          variant="outline"
-          onClick={() =>
-            p.open('reconciliation', undefined, { month: p.month })
-          }
-        >
-          <Plus size={15} /> {t('Add statement balances')}
-        </Button>
-      }
     >
+      <EntryActions
+        {...p}
+        kind="reconciliation"
+        manualLabel="Add statement balances"
+        defaults={{ month: p.month }}
+        context={p.month}
+      />
       <DataTable
         headings={[
           'Account',
@@ -2081,6 +2121,7 @@ export function Leads(p: ViewProps) {
   );
   return (
     <>
+      <EntryActions {...p} kind="lead" manualLabel="Add lead" />
       <FilterBar
         module="leads"
         actor={p.snapshot.actor}

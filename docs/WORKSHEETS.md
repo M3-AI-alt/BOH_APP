@@ -8,9 +8,18 @@ worksheets.
 
 For the deployed workspace upgrade and explicit outstanding modules, see [implementation status](WORKSPACE-IMPLEMENTATION.md). Existing templates described here remain supported; new planned modules are not yet available as worksheet tasks.
 
-Open **Import & export** in BOH. Select a task to open its manual entry form, download an Excel/CSV template, preview an upload, or export saved records.
+On each supported entry page, use **Add manually · Download worksheet sample · Import completed worksheet** beside its records. Imports open in a panel without resetting the underlying page or filters. The central **Import & export** workspace remains available for the 16 operational tasks.
 
 Supported tasks: students, leads, classes, class memberships, calendar changes, attendance, makeups, free support, package catalogue, student packages, collections, expenses, commitments, payroll drafts, reconciliation reviews and tasks.
+
+Accounting also has two dedicated worksheets:
+
+- **Documents:** `BOH-accounting-documents.xlsx` creates draft bills, payroll, refund requests and journals. Journals require balanced `JournalLines` linked to their Entry references. No import approves, posts or pays a document.
+- **Import review:** `BOH-accounting-source.xlsx` stages bank, spreadsheet or Top ID evidence for checking. It does not create receipts, expenses, opening balances or journals. **Add manually** offers the same review flow for one source record. Existing CSV exports with different columns can still use the secondary **Map another CSV** action.
+
+Both files contain a bilingual Guide, a blank Entry sheet and separate Examples that are never imported. Documents additionally have a blank JournalLines sheet (500 lines total, 100 per journal). Imports accept up to 200 entries. Use explicit whole VND amounts and valid dates; do not enter formulas. Accounting uploads use `/api/accounting-worksheets`, not the operational or accountant-preparation importer.
+
+Accounting references are private, database-checked and stable across repeated uploads and concurrent saves. Changed data under an existing reference is rejected. Documents share one reference namespace; source references are scoped to source/dataset/category. Renaming the file does not evade duplicate checks. Deleting an unused draft retains its import reference to prevent accidental recreation. Review results show saved, skipped and failed rows; **Start another import** allows corrections and retry. Period/status filters can hide saved records, so the result explains where to look.
 
 ## Download, fill, review, save
 

@@ -114,6 +114,25 @@ const preparationUrl = url(
       "const reviewPreparation=()=>{throw Error('Review reached before authorization');};",
     ),
 );
+const accountingWorksheetSchemaUrl = url(
+  fs
+    .readFileSync('lib/accounting-worksheets.ts', 'utf8')
+    .replaceAll("from './accounting'", `from '${accountingDomainUrl}'`),
+);
+const accountingWorksheetServerUrl = url(
+  fs
+    .readFileSync('lib/accounting-worksheet-server.ts', 'utf8')
+    .replaceAll("from './server'", `from '${serverUrl}'`)
+    .replaceAll("from './storage'", `from '${storage}'`)
+    .replaceAll(
+      "from './accounting-worksheets'",
+      `from '${accountingWorksheetSchemaUrl}'`,
+    )
+    .replace(
+      "import { loadBoundedWorkbook } from './worksheet-file';",
+      "const loadBoundedWorkbook=()=>{throw Error('Workbook reached before authorization');};",
+    ),
+);
 const route = async (path) =>
   import(
     url(
@@ -124,6 +143,14 @@ const route = async (path) =>
         .replaceAll("from '@/lib/domain'", `from '${domain}'`)
         .replaceAll("from '@/lib/password-auth'", `from '${nativeUrl}'`)
         .replaceAll("from '@/lib/storage'", `from '${storage}'`)
+        .replaceAll(
+          "from '@/lib/accounting-worksheet-server'",
+          `from '${accountingWorksheetServerUrl}'`,
+        )
+        .replaceAll(
+          "from '@/lib/accounting-worksheets'",
+          `from '${accountingWorksheetSchemaUrl}'`,
+        )
         .replaceAll("from '@/lib/drafts-server'", `from '${draftsUrl}'`)
         .replaceAll("from '@/lib/saved-views-server'", `from '${viewsUrl}'`)
         .replaceAll(
@@ -231,6 +258,7 @@ test('all record API entrypoints reject temporary-password access', async () => 
     'student-link',
     'drafts',
     'accounting',
+    'accounting-worksheets',
     'views',
     'preparation',
   ]) {
@@ -257,7 +285,12 @@ test('drafts and finance read/write routes reject anonymous, inactive and TA acc
   ]) {
     const q = setup();
     q.session = session;
-    for (const path of ['drafts', 'accounting', 'preparation']) {
+    for (const path of [
+      'drafts',
+      'accounting',
+      'accounting-worksheets',
+      'preparation',
+    ]) {
       const api = await route('app/api/' + path + '/route.ts');
       for (const fn of [api.GET, api.POST]) {
         const response = await fn(req(path, { operation: 'pay' }));

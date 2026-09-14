@@ -87,6 +87,39 @@
     paid: 0,
     lines: [],
   };
+  const accountingDocuments = [bill];
+  const accountingSources = [];
+  const worksheetCommands = new Map();
+  // CSV-only parsing for synthetic browser presentation tests. The real XLSX
+  // parser and validation are exercised separately by the server unit tests.
+  function csvRows(csv) {
+    const rows = [],
+      row = [];
+    let value = '',
+      quoted = false;
+    for (let i = 0; i <= csv.length; i++) {
+      const c = csv[i];
+      if (c === '"') {
+        if (quoted && csv[i + 1] === '"') {
+          value += '"';
+          i++;
+        } else quoted = !quoted;
+      } else if (!quoted && (c === ',' || c === '\n' || c === undefined)) {
+        row.push(value.replace(/\r$/, ''));
+        value = '';
+        if (c !== ',') {
+          if (row.some(Boolean)) rows.push([...row]);
+          row.length = 0;
+        }
+      } else value += c;
+    }
+    const headers = rows.shift() || [];
+    return rows.map((values) =>
+      Object.fromEntries(
+        headers.map((key, i) => [key.replace(/^\uFEFF/, ''), values[i] || '']),
+      ),
+    );
+  }
   const jsonb = (value) =>
     JSON.parse(
       JSON.stringify(value, (_key, v) =>
@@ -108,6 +141,14 @@
     failDraftAfterCommit: false,
     failDraftRead: false,
     requests: [],
+    accountingDocuments,
+    accountingSources,
+    worksheetCommands,
+    // For an XLSX UI test, set these to the exact synthetic rows in that file.
+    accountingWorksheetRows: null,
+    worksheetRows: null,
+    delayWorksheet: 0,
+    failWorksheetAfterCommit: false,
   };
   window.fetch = async (input, options = {}) => {
     const url = new URL(
@@ -200,23 +241,168 @@
         throw new TypeError('QA simulated lost save response');
       }
     } else if (
+      (url.pathname === '/api/accounting-worksheets' ||
+        url.pathname === '/api/worksheets') &&
+      method === 'POST'
+    ) {
+      if (qa.delayWorksheet)
+        await new Promise((resolve) => setTimeout(resolve, qa.delayWorksheet));
+      const accounting = url.pathname === '/api/accounting-worksheets';
+      const operation = accounting ? body.operation : body.action;
+      if (!['preview', 'commit'].includes(operation))
+        return Response.json(
+          { error: 'QA fixture: unsupported worksheet operation' },
+          { status: 400 },
+        );
+      const suppliedRows = accounting
+        ? qa.accountingWorksheetRows
+        : qa.worksheetRows;
+      if (body.xlsx && !Array.isArray(suppliedRows))
+        return Response.json(
+          {
+            error: 'QA fixture: configure synthetic XLSX rows before this test',
+          },
+          { status: 400 },
+        );
+      const rawRows = body.xlsx
+        ? structuredClone(suppliedRows)
+        : csvRows(body.csv || '');
+      const source = accounting && body.kind === 'source';
+      const digest =
+        'qa-' +
+        [
+          ...new Uint8Array(
+            await crypto.subtle.digest(
+              'SHA-256',
+              new TextEncoder().encode(
+                JSON.stringify({
+                  kind: body.kind,
+                  rawRows,
+                  metadata: body.metadata,
+                }),
+              ),
+            ),
+          ),
+        ]
+          .map((n) => n.toString(16).padStart(2, '0'))
+          .join('');
+      if (operation === 'commit' && body.digest !== digest)
+        return Response.json(
+          { error: 'The worksheet changed. Preview it again.' },
+          { status: 409 },
+        );
+      const rows = rawRows.map((raw, index) => {
+        const { entryKey: key, ...payload } = raw;
+        if (payload.amount !== undefined)
+          payload.amount = Number(payload.amount);
+        if (source) payload.externalId = key;
+        if (accounting && !source) payload.lines ||= [];
+        const commandKey = url.pathname + ':' + body.kind + ':' + key;
+        let status = worksheetCommands.has(commandKey)
+          ? 'Already imported'
+          : 'Ready';
+        let error = '';
+        if (
+          !key ||
+          (accounting &&
+            (!payload.date || !Number.isSafeInteger(payload.amount)))
+        ) {
+          status = 'Needs correction';
+          error = 'Check the document dates.';
+        }
+        const item = {
+          row: index + 2,
+          key: key || '',
+          label: payload.title || payload.name || key,
+          status,
+          payload,
+          ...(error ? { error } : {}),
+        };
+        if (operation === 'commit' && status === 'Ready') {
+          const id = 'qa-worksheet-' + crypto.randomUUID();
+          item.status = 'Saved';
+          item.id = id;
+          worksheetCommands.set(commandKey, id);
+          if (source)
+            accountingSources.push({
+              id,
+              external_id: key,
+              document_date: payload.date,
+              amount: payload.amount,
+              source: body.metadata.source,
+              dataset: body.metadata.dataset,
+              view_name: body.metadata.view,
+              file_name: body.metadata.fileName,
+              row_number: index + 1,
+              status: 'Needs confirmation',
+              possible_duplicates: 0,
+              raw: payload,
+            });
+          else if (accounting)
+            accountingDocuments.push({
+              id,
+              ...payload,
+              status: 'Draft',
+              revision: 1,
+              paid: 0,
+            });
+          else state.records.push(record(body.kind, id, payload));
+        }
+        return item;
+      });
+      out = {
+        rows,
+        count: rows.length,
+        digest,
+        ...(operation === 'commit'
+          ? {
+              committed: true,
+              saved: rows.filter((row) => row.status === 'Saved').length,
+              skipped: rows.filter((row) => row.status === 'Already imported')
+                .length,
+              failed: rows.filter((row) => row.status === 'Needs correction')
+                .length,
+            }
+          : {}),
+      };
+      if (operation === 'commit' && qa.failWorksheetAfterCommit) {
+        qa.failWorksheetAfterCommit = false;
+        throw new TypeError('QA simulated lost worksheet response');
+      }
+    } else if (
       url.pathname === '/api/accounting' &&
       url.searchParams.get('queue')
     )
       out = { rows: [], total: 0 };
-    else if (url.pathname === '/api/accounting' && method === 'GET')
+    else if (url.pathname === '/api/accounting' && method === 'GET') {
+      const imports = url.searchParams.get('tab') === 'imports';
+      const sourceRows = imports ? accountingSources : accountingDocuments;
+      const month = url.searchParams.get('month');
+      const status = url.searchParams.get('status');
+      const filtered = sourceRows.filter(
+        (row) =>
+          (!month ||
+            (imports ? row.document_date : row.date)?.startsWith(month)) &&
+          (!status || row.status === status),
+      );
       out = {
-        rows: [bill],
-        total: 1,
+        rows: filtered,
+        total: filtered.length,
         offset: 0,
         pageSize: 50,
-        summary: { unreviewed: 0, submitted: 0, approved: 1 },
+        summary: {
+          unreviewed: accountingSources.filter(
+            (row) => row.status === 'Needs confirmation',
+          ).length,
+          submitted: 0,
+          approved: 1,
+        },
         month: date.slice(0, 7),
         status: '',
         generatedAt: new Date().toISOString(),
         basis: 'QA operational documents',
       };
-    else if (url.pathname === '/api/accounting' && body.operation === 'pay') {
+    } else if (url.pathname === '/api/accounting' && body.operation === 'pay') {
       bill.paid += body.payload.amount;
       bill.revision++;
       out = { bankVerified: false };

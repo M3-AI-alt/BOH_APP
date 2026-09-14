@@ -19,7 +19,7 @@ const forbidden = tracked.filter(
       f,
     ) &&
     f !== '.env.example' &&
-    !/^public\/templates\/BOH-(student|lead|class|membership|calendar|attendance|makeup|support|catalogue|package|receipt|expense|commitment|payroll|reconciliation|task)\.xlsx$/.test(
+    !/^public\/templates\/BOH-(student|lead|class|membership|calendar|attendance|makeup|support|catalogue|package|receipt|expense|commitment|payroll|reconciliation|task|accounting-source|accounting-documents)\.xlsx$/.test(
       f,
     ),
 );

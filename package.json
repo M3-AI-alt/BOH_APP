@@ -14,7 +14,7 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
-    "test": "node --test scripts/test-domain.mjs scripts/test-student-server.mjs scripts/test-password-auth.mjs scripts/test-i18n.mjs scripts/test-hostinger.mjs scripts/test-accounting.mjs scripts/test-bulk.mjs scripts/test-workspace.mjs scripts/test-entry-ux.mjs scripts/test-preparation.mjs scripts/test-preparation-server.mjs",
+    "test": "node --test scripts/test-domain.mjs scripts/test-student-server.mjs scripts/test-password-auth.mjs scripts/test-i18n.mjs scripts/test-hostinger.mjs scripts/test-accounting.mjs scripts/test-bulk.mjs scripts/test-workspace.mjs scripts/test-entry-ux.mjs scripts/test-preparation.mjs scripts/test-preparation-server.mjs scripts/test-contextual-entry.mjs scripts/test-accounting-worksheets.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

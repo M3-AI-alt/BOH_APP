@@ -5,6 +5,7 @@ import { useLanguage } from './language';
 import { entries } from '@/lib/domain';
 import { priceList } from '@/lib/types';
 import type { ViewProps } from './views';
+import { EntryActions } from './entry-actions';
 export function CentreSettings(p: ViewProps) {
   const { t, money } = useLanguage(),
     classes = entries(p.snapshot.records, 'class'),
@@ -25,12 +26,8 @@ export function CentreSettings(p: ViewProps) {
         subtitle={t(
           'Class names, colours and weekly timetables are shared across the workspace.',
         )}
-        action={
-          p.snapshot.actor.role === 'Director' && (
-            <Button onClick={() => p.open('class')}>{t('Add class')}</Button>
-          )
-        }
       >
+        <EntryActions {...p} kind="class" manualLabel="Add class" />
         <DataTable
           headings={['Class', 'Lesson weekdays', 'Status', 'Review / actions']}
           rows={classes.map((c) => [
@@ -62,12 +59,12 @@ export function CentreSettings(p: ViewProps) {
         subtitle={t(
           'Catalogue changes apply only to new agreements. Purchased packages retain their agreed fees and session counts.',
         )}
-        action={
-          <Button onClick={() => p.open('catalogue')}>
-            {t('Add catalogue package')}
-          </Button>
-        }
       >
+        <EntryActions
+          {...p}
+          kind="catalogue"
+          manualLabel="Add catalogue package"
+        />
         <DataTable
           headings={[
             'Package',

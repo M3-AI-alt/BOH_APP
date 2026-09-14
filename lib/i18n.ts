@@ -37,6 +37,18 @@ export function translate(
 export function translateMessage(locale: Locale, message: string): string {
   if (locale === 'en' || dictionary[message]) return translate(locale, message);
   const patterns: [RegExp, string, string][] = [
+    [/^Unknown columns: (.+)$/, 'Unknown columns: {name}', 'name'],
+    [/^Missing column: (.+)$/, 'Missing column: {name}', 'name'],
+    [
+      /^Use plain values, not formulas: (.+)\.$/,
+      'Use plain values, not formulas: {name}.',
+      'name',
+    ],
+    [
+      /^Journal line has no matching Entry reference: (.+)$/,
+      'Journal line has no matching Entry reference: {name}',
+      'name',
+    ],
     [/^(.+) is required\.$/, '{name} is required.', 'name'],
     [/^Check (.+)\.$/, 'Check {name}.', 'name'],
     [/^Enter a valid (.+)\.$/, 'Enter a valid {name}.', 'name'],
