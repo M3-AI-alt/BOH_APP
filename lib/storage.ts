@@ -26,21 +26,26 @@ export async function storeCall(
       '/rest/v1/rpc/' +
       (operation === 'link_student_record'
         ? 'boh_student_link'
-        : operation.startsWith('auth_')
-          ? 'boh_auth'
-          : operation.startsWith('view_')
-            ? 'boh_saved_view'
-            : operation.startsWith('entry_')
-              ? 'boh_entry_command'
-              : operation.startsWith('draft_')
-                ? 'boh_drafts'
-                : ['fin_pay', 'fin_export', 'fin_queue', 'fin_focus'].includes(
-                      operation,
-                    )
-                  ? 'boh_finance_workspace'
-                  : operation.startsWith('fin_')
-                    ? 'boh_finance'
-                    : 'boh_store'),
+        : operation.startsWith('prep_')
+          ? 'boh_preparation'
+          : operation.startsWith('auth_')
+            ? 'boh_auth'
+            : operation.startsWith('view_')
+              ? 'boh_saved_view'
+              : operation.startsWith('entry_')
+                ? 'boh_entry_command'
+                : operation.startsWith('draft_')
+                  ? 'boh_drafts'
+                  : [
+                        'fin_pay',
+                        'fin_export',
+                        'fin_queue',
+                        'fin_focus',
+                      ].includes(operation)
+                    ? 'boh_finance_workspace'
+                    : operation.startsWith('fin_')
+                      ? 'boh_finance'
+                      : 'boh_store'),
     {
       method: 'POST',
       headers: {

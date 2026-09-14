@@ -3217,3 +3217,74 @@ a {
     max-width: 100%;
   }
 }
+.preparation-content {
+  padding: 0 1.5rem 1.5rem;
+  overflow-wrap: anywhere;
+}
+.preparation-content .bulk-toolbar {
+  padding: 1rem 0;
+}
+.preparation-content button {
+  white-space: normal;
+  min-height: 44px;
+}
+.preparation-results {
+  margin-top: 1.5rem;
+}
+.preparation-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.preparation-history h3 {
+  flex-basis: 100%;
+}
+.preparation-rows {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+}
+.preparation-row {
+  border: 1px solid #dce4eb;
+  border-radius: 0.75rem;
+  background: white;
+}
+.preparation-row summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.preparation-row summary > span:first-child {
+  font-weight: 600;
+  flex: 1 1 15rem;
+}
+.preparation-row summary:focus-visible {
+  outline: 3px solid #8a2444;
+  outline-offset: 2px;
+}
+.preparation-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+  padding: 0 1rem 1rem;
+  overflow-wrap: anywhere;
+}
+.preparation-detail ul {
+  grid-column: 1 / -1;
+  color: #852a2a;
+}
+.preparation-detail dl > div {
+  margin-block: 0.65rem;
+}
+.preparation-detail dt {
+  font-size: 0.875rem;
+  color: #54687a;
+}
+.preparation-detail dd {
+  margin: 0.2rem 0 0;
+}

@@ -97,6 +97,23 @@ const accountingUrl = url(
     .replaceAll("from './storage'", `from '${storage}'`)
     .replaceAll("from './accounting'", `from '${accountingDomainUrl}'`),
 );
+// Parsing and review have dedicated tests. These route tests must reject
+// restricted sessions before either helper can inspect a workbook.
+const preparationUrl = url(
+  fs
+    .readFileSync('lib/preparation-server.ts', 'utf8')
+    .replace("import { env } from 'cloudflare:workers';", 'const env={};')
+    .replaceAll("from './server'", `from '${serverUrl}'`)
+    .replaceAll("from './storage'", `from '${storage}'`)
+    .replace(
+      "import { parsePreparationFile } from './preparation-file';",
+      "const parsePreparationFile=()=>{throw Error('Parser reached before authorization');};",
+    )
+    .replace(
+      "import { reviewPreparation } from './preparation-review';",
+      "const reviewPreparation=()=>{throw Error('Review reached before authorization');};",
+    ),
+);
 const route = async (path) =>
   import(
     url(
@@ -109,6 +126,10 @@ const route = async (path) =>
         .replaceAll("from '@/lib/storage'", `from '${storage}'`)
         .replaceAll("from '@/lib/drafts-server'", `from '${draftsUrl}'`)
         .replaceAll("from '@/lib/saved-views-server'", `from '${viewsUrl}'`)
+        .replaceAll(
+          "from '@/lib/preparation-server'",
+          `from '${preparationUrl}'`,
+        )
         .replaceAll(
           "from '@/lib/accounting-server'",
           `from '${accountingUrl}'`,
@@ -211,6 +232,7 @@ test('all record API entrypoints reject temporary-password access', async () => 
     'drafts',
     'accounting',
     'views',
+    'preparation',
   ]) {
     const file = `app/api/${path}/route.ts`;
     if (!fs.existsSync(file)) continue;
@@ -235,7 +257,7 @@ test('drafts and finance read/write routes reject anonymous, inactive and TA acc
   ]) {
     const q = setup();
     q.session = session;
-    for (const path of ['drafts', 'accounting']) {
+    for (const path of ['drafts', 'accounting', 'preparation']) {
       const api = await route('app/api/' + path + '/route.ts');
       for (const fn of [api.GET, api.POST]) {
         const response = await fn(req(path, { operation: 'pay' }));

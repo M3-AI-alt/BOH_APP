@@ -95,7 +95,7 @@ export function checkXlsxArchive(bytes: Buffer) {
   if (!names.has('xl/workbook.xml')) throw Error('Choose an .xlsx workbook.');
   return files;
 }
-export async function readWorksheet(base64: string) {
+export async function loadBoundedWorkbook(base64: string) {
   if (base64.length > 2_700_000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64))
     throw Error('Invalid Excel upload.');
   const bytes = Buffer.from(base64, 'base64');
@@ -128,6 +128,14 @@ export async function readWorksheet(base64: string) {
   await workbook.xlsx.load(normalized as any, {
     ignoreNodes: ['tableParts', 'drawing', 'picture', 'extLst'],
   });
+  return workbook;
+}
+export async function readWorksheet(base64: string) {
+  const workbook = await loadBoundedWorkbook(base64);
+  if (workbook.getWorksheet('_BOH_PREP'))
+    throw Error(
+      'Use Accountant preparation review for this prefilled workbook. It must not be imported as new entries.',
+    );
   const sheet = workbook.getWorksheet('Entry');
   if (!sheet)
     throw Error('Use the Entry worksheet in the downloaded BOH template.');

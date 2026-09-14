@@ -20,6 +20,7 @@ import {
 import { entries } from '@/lib/domain';
 import { csvCell } from '@/lib/accounting';
 import type { ViewProps } from './views';
+import { PreparationWorkspace } from './preparation-workspace';
 
 export function BulkWorkspace(p: ViewProps) {
   const { t, message } = useLanguage();
@@ -136,6 +137,9 @@ export function BulkWorkspace(p: ViewProps) {
   const ready = preview?.rows.filter((r) => r.status === 'Ready').length || 0;
   return (
     <div className="bulk-workspace">
+      {a.active && ['Director', 'Finance'].includes(a.role) && (
+        <PreparationWorkspace />
+      )}
       <Panel
         title={t('Import & export')}
         subtitle={t(
